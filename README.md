@@ -8,13 +8,21 @@ This automation integrates Devin with GitHub Issues to provide:
 
 ## Quick Demo (No Setup Required)
 
-### Option 1: Simple Demo (Works with basic Python 3.x)
+### Option 1: Web Interface Demo (Works in any browser)
+Interactive web demo with GitHub-themed interface:
+```bash
+# Open in your browser
+open demo_web.html
+# Or on Linux/Windows: double-click demo_web.html
+```
+
+### Option 2: Simple CLI Demo (Works with basic Python 3.x)
 If you have Python 3.x but don't want to install dependencies:
 ```bash
 python3 simple_demo.py
 ```
 
-### Option 2: Full Demo (Requires Python 3.8+)
+### Option 3: Rich CLI Demo (Requires Python 3.8+)
 For rich formatting and full CLI experience:
 ```bash
 python3 demo.py
@@ -54,6 +62,14 @@ python3 demo.py
 ## Usage
 
 ### Demo Mode (No API Keys Required)
+
+#### Web Interface Demo
+```bash
+# Interactive web demo (no dependencies required)
+open demo_web.html
+```
+
+#### CLI Demo Commands
 ```bash
 # List demo issues
 python main.py list-issues --demo --repo test/repo
@@ -67,8 +83,9 @@ python main.py complete-issue --demo --repo test/repo --issue-number 123 --scope
 # Interactive demo dashboard
 python main.py dashboard --demo --repo test/repo
 
-# Full workflow demo
-python demo.py
+# Full workflow demos
+python demo.py              # Rich CLI demo
+python simple_demo.py       # Simple CLI demo
 ```
 
 ### Production Mode (API Keys Required)

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Issues Integration with Devin - Demo</title>
+    <style>
+        body {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background-color: #0d1117;
+            color: #c9d1d9;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #1f6feb, #8b5cf6);
+            border-radius: 10px;
+        }
+        .step {
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #161b22;
+            border-radius: 8px;
+            border-left: 4px solid #1f6feb;
+        }
+        .step-title {
+            color: #58a6ff;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background-color: #0d1117;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .table th, .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        .table th {
+            background-color: #21262d;
+            color: #f0f6fc;
+            font-weight: bold;
+        }
+        .table tr:hover {
+            background-color: #161b22;
+        }
+        .panel {
+            background-color: #0d1117;
+            border: 2px solid #30363d;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        .panel.high-confidence {
+            border-color: #238636;
+        }
+        .panel.success {
+            border-color: #238636;
+        }
+        .confidence-high {
+            color: #3fb950;
+            font-weight: bold;
+        }
+        .status-success {
+            color: #3fb950;
+            font-weight: bold;
+        }
+        .list {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .list li {
+            margin: 5px 0;
+        }
+        .url {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+        .url:hover {
+            text-decoration: underline;
+        }
+        .summary {
+            background-color: #0f3460;
+            border: 2px solid #1f6feb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 30px 0;
+        }
+        .emoji {
+            font-size: 1.2em;
+        }
+        .loading {
+            color: #f85149;
+            font-style: italic;
+        }
+        .demo-controls {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .btn {
+            background: linear-gradient(135deg, #1f6feb, #8b5cf6);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><span class="emoji">🚀</span> GitHub Issues Integration with Devin - Live Demo</h1>
+            <p>Automated issue listing, scoping with confidence scoring, and task completion</p>
+        </div>
+
+        <div class="demo-controls">
+            <button class="btn" onclick="runDemo()">Run Demo</button>
+            <button class="btn" onclick="resetDemo()">Reset</button>
+        </div>
+
+        <div id="demo-content">
+            <div class="step">
+                <div class="step-title">Ready to demonstrate GitHub Issues Integration</div>
+                <p>Click "Run Demo" to see the complete workflow in action!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let demoStep = 0;
+        
+        function resetDemo() {
+            demoStep = 0;
+            document.getElementById('demo-content').innerHTML = `
+                <div class="step">
+                    <div class="step-title">Ready to demonstrate GitHub Issues Integration</div>
+                    <p>Click "Run Demo" to see the complete workflow in action!</p>
+                </div>
+            `;
+        }
+
+        function runDemo() {
+            if (demoStep === 0) {
+                showStep1();
+            } else if (demoStep === 1) {
+                showStep2();
+            } else if (demoStep === 2) {
+                showStep3();
+            } else if (demoStep === 3) {
+                showSummary();
+            }
+        }
+
+        function showStep1() {
+            demoStep = 1;
+            document.getElementById('demo-content').innerHTML = `
+                <div class="step">
+                    <div class="step-title">Step 1: Listing GitHub Issues</div>
+                    <p>Fetching issues from demo repository...</p>
+                    
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Number</th>
+                                <th>Title</th>
+                                <th>State</th>
+                                <th>Labels</th>
+                                <th>Assignees</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>123</td>
+                                <td>Add user authentication to login page</td>
+                                <td>open</td>
+                                <td>enhancement, authentication, frontend</td>
+                                <td>developer1</td>
+                            </tr>
+                            <tr>
+                                <td>124</td>
+                                <td>Fix memory leak in data processing pipeline</td>
+                                <td>open</td>
+                                <td>bug, performance, backend</td>
+                                <td>developer2</td>
+                            </tr>
+                            <tr>
+                                <td>125</td>
+                                <td>Update documentation for API endpoints</td>
+                                <td>open</td>
+                                <td>documentation</td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td>126</td>
+                                <td>Implement dark mode toggle</td>
+                                <td>open</td>
+                                <td>enhancement, ui, frontend</td>
+                                <td>designer1</td>
+                            </tr>
+                            <tr>
+                                <td>127</td>
+                                <td>Database migration script fails on PostgreSQL 14</td>
+                                <td>open</td>
+                                <td>bug, database, migration</td>
+                                <td>dba1</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <p><strong>✅ Found 5 open issues</strong> - Click "Run Demo" to continue with scoping analysis</p>
+                </div>
+            `;
+        }
+
+        function showStep2() {
+            demoStep = 2;
+            document.getElementById('demo-content').innerHTML += `
+                <div class="step">
+                    <div class="step-title">Step 2: Scoping Issue #123</div>
+                    <p class="loading">Analyzing issue with Devin AI...</p>
+                    
+                    <div class="panel high-confidence">
+                        <h3>Issue #123 Scope Analysis</h3>
+                        
+                        <p><strong>Confidence Score:</strong> <span class="confidence-high">0.85 (high)</span></p>
+                        <p><strong>Complexity:</strong> Medium complexity - requires OAuth integration and frontend changes</p>
+                        <p><strong>Estimated Effort:</strong> 3-5 days</p>
+                        
+                        <h4>Required Skills:</h4>
+                        <ul class="list">
+                            <li>React/Frontend</li>
+                            <li>OAuth2</li>
+                            <li>Authentication</li>
+                            <li>API Integration</li>
+                        </ul>
+                        
+                        <h4>Action Plan:</h4>
+                        <ol class="list">
+                            <li>Research OAuth2 providers (GitHub, Google)</li>
+                            <li>Set up OAuth2 configuration</li>
+                            <li>Implement login components</li>
+                            <li>Add authentication middleware</li>
+                            <li>Update user session management</li>
+                            <li>Add logout functionality</li>
+                            <li>Write tests for auth flow</li>
+                        </ol>
+                        
+                        <h4>Risks:</h4>
+                        <ul class="list">
+                            <li>OAuth provider rate limits</li>
+                            <li>Session management complexity</li>
+                            <li>Security vulnerabilities</li>
+                        </ul>
+                        
+                        <p><strong>Devin Session:</strong> <a href="https://app.devin.ai/sessions/demo_123" class="url">https://app.devin.ai/sessions/demo_123</a></p>
+                    </div>
+                    
+                    <p><strong>✅ Issue scoped with 85% confidence</strong> - Click "Run Demo" to continue with task completion</p>
+                </div>
+            `;
+        }
+
+        function showStep3() {
+            demoStep = 3;
+            document.getElementById('demo-content').innerHTML += `
+                <div class="step">
+                    <div class="step-title">Step 3: Completing Issue #123</div>
+                    <p class="loading">Triggering Devin session to complete the issue...</p>
+                    
+                    <div class="panel success">
+                        <h3>Issue #123 Completion Result</h3>
+                        
+                        <p><strong>Status:</strong> <span class="status-success">completed</span></p>
+                        <p><strong>Success:</strong> <span class="status-success">True</span></p>
+                        
+                        <h4>Summary:</h4>
+                        <p>Successfully implemented OAuth2 authentication with GitHub and Google providers. Added login/logout functionality with session management.</p>
+                        
+                        <h4>Files Modified:</h4>
+                        <ul class="list">
+                            <li>src/components/Login.jsx</li>
+                            <li>src/components/AuthCallback.jsx</li>
+                            <li>src/middleware/auth.js</li>
+                            <li>src/utils/oauth.js</li>
+                            <li>src/styles/auth.css</li>
+                            <li>tests/auth.test.js</li>
+                        </ul>
+                        
+                        <p><strong>Pull Request:</strong> <a href="https://github.com/example/repo/pull/456" class="url">https://github.com/example/repo/pull/456</a></p>
+                        <p><strong>Devin Session:</strong> <a href="https://app.devin.ai/sessions/demo_completion_123" class="url">https://app.devin.ai/sessions/demo_completion_123</a></p>
+                    </div>
+                    
+                    <p><strong>✅ Issue completed successfully</strong> - Click "Run Demo" to see the summary</p>
+                </div>
+            `;
+        }
+
+        function showSummary() {
+            demoStep = 0;
+            document.getElementById('demo-content').innerHTML += `
+                <div class="summary">
+                    <h2><span class="emoji">✅</span> Demo Complete!</h2>
+                    <p>The GitHub Issues Integration successfully:</p>
+                    <ul class="list">
+                        <li>Listed issues from the repository</li>
+                        <li>Analyzed issue #123 with 85% confidence</li>
+                        <li>Completed the issue and created PR: <a href="https://github.com/example/repo/pull/456" class="url">https://github.com/example/repo/pull/456</a></li>
+                    </ul>
+                    
+                    <h3>Key Features Demonstrated:</h3>
+                    <ul class="list">
+                        <li><strong>Issue Listing:</strong> CLI and dashboard for viewing GitHub issues</li>
+                        <li><strong>AI-Powered Scoping:</strong> Devin analyzes issues and provides confidence scores</li>
+                        <li><strong>Automated Completion:</strong> Devin creates sessions to complete tasks</li>
+                        <li><strong>Demo Mode:</strong> Works without API keys for testing</li>
+                        <li><strong>Rich Output:</strong> Formatted tables, panels, and interactive elements</li>
+                    </ul>
+                    
+                    <p><strong>Ready to use with real GitHub repositories and Devin API!</strong></p>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

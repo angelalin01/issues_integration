@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Issues Integration with Devin - Interactive Demo</title>
+    <style>
+        body {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background-color: #0d1117;
+            color: #c9d1d9;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #1f6feb, #8b5cf6);
+            border-radius: 10px;
+        }
+        .config-section {
+            background-color: #161b22;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-left: 4px solid #f85149;
+        }
+        .config-section.configured {
+            border-left-color: #238636;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #f0f6fc;
+            font-weight: bold;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            background-color: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #c9d1d9;
+            font-family: inherit;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #1f6feb;
+        }
+        .step {
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #161b22;
+            border-radius: 8px;
+            border-left: 4px solid #1f6feb;
+        }
+        .step-title {
+            color: #58a6ff;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background-color: #0d1117;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .table th, .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        .table th {
+            background-color: #21262d;
+            color: #f0f6fc;
+            font-weight: bold;
+        }
+        .table tr:hover {
+            background-color: #161b22;
+        }
+        .panel {
+            background-color: #0d1117;
+            border: 2px solid #30363d;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        .panel.high-confidence {
+            border-color: #238636;
+        }
+        .panel.success {
+            border-color: #238636;
+        }
+        .confidence-high {
+            color: #3fb950;
+            font-weight: bold;
+        }
+        .status-success {
+            color: #3fb950;
+            font-weight: bold;
+        }
+        .list {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .list li {
+            margin: 5px 0;
+        }
+        .url {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+        .url:hover {
+            text-decoration: underline;
+        }
+        .summary {
+            background-color: #0f3460;
+            border: 2px solid #1f6feb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 30px 0;
+        }
+        .emoji {
+            font-size: 1.2em;
+        }
+        .loading {
+            color: #f85149;
+            font-style: italic;
+        }
+        .demo-controls {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .btn {
+            background: linear-gradient(135deg, #1f6feb, #8b5cf6);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .status-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .status-demo {
+            background-color: #f85149;
+            color: white;
+        }
+        .status-live {
+            background-color: #238636;
+            color: white;
+        }
+        .error {
+            color: #f85149;
+            background-color: #2d1117;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><span class="emoji">🚀</span> GitHub Issues Integration with Devin - Interactive Demo</h1>
+            <p>Configure your API credentials to use live data, or use demo mode with sample data</p>
+        </div>
+
+        <div id="config-section" class="config-section">
+            <h3>Configuration</h3>
+            <div class="form-group">
+                <label for="github-token">GitHub Token (optional - leave empty for demo mode):</label>
+                <input type="password" id="github-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+            </div>
+            <div class="form-group">
+                <label for="devin-api-key">Devin API Key (optional - leave empty for demo mode):</label>
+                <input type="password" id="devin-api-key" placeholder="your_devin_api_key_here">
+            </div>
+            <div class="form-group">
+                <label for="repo-name">GitHub Repository (e.g., octocat/Hello-World):</label>
+                <input type="text" id="repo-name" placeholder="octocat/Hello-World" value="octocat/Hello-World">
+            </div>
+            <button class="btn" onclick="configure()">Configure & Start Demo</button>
+            <div id="config-status"></div>
+        </div>
+
+        <div id="demo-content" style="display: none;">
+            <div class="demo-controls">
+                <button class="btn" id="list-btn" onclick="listIssues()">List Issues</button>
+                <button class="btn" id="scope-btn" onclick="scopeIssue()" disabled>Scope Issue #123</button>
+                <button class="btn" id="complete-btn" onclick="completeIssue()" disabled>Complete Issue #123</button>
+                <button class="btn" onclick="resetDemo()">Reset</button>
+            </div>
+
+            <div id="demo-steps"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentConfig = {
+            demo_mode: true,
+            repo_name: null
+        };
+
+        async function configure() {
+            const githubToken = document.getElementById('github-token').value.trim();
+            const devinApiKey = document.getElementById('devin-api-key').value.trim();
+            const repoName = document.getElementById('repo-name').value.trim();
+
+            if (!repoName) {
+                showError('Please enter a repository name');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        github_token: githubToken || null,
+                        devin_api_key: devinApiKey || null,
+                        repo_name: repoName
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentConfig = result;
+                    
+                    const configSection = document.getElementById('config-section');
+                    configSection.classList.add('configured');
+                    
+                    const statusHtml = `
+                        <div style="margin-top: 15px;">
+                            <span class="status-indicator ${result.demo_mode ? 'status-demo' : 'status-live'}">
+                                ${result.demo_mode ? 'DEMO MODE' : 'LIVE MODE'}
+                            </span>
+                            <p style="margin-top: 10px;">
+                                Repository: <strong>${result.repo_name}</strong><br>
+                                ${result.demo_mode ? 
+                                    'Using sample data - configure API keys above for live data' : 
+                                    'Using live GitHub and Devin APIs'
+                                }
+                            </p>
+                        </div>
+                    `;
+                    document.getElementById('config-status').innerHTML = statusHtml;
+                    document.getElementById('demo-content').style.display = 'block';
+                } else {
+                    showError('Configuration failed: ' + result.error);
+                }
+            } catch (error) {
+                showError('Configuration failed: ' + error.message);
+            }
+        }
+
+        async function listIssues() {
+            const stepsDiv = document.getElementById('demo-steps');
+            stepsDiv.innerHTML = `
+                <div class="step">
+                    <div class="step-title">Step 1: Listing GitHub Issues</div>
+                    <p class="loading">Fetching issues from ${currentConfig.repo_name}...</p>
+                </div>
+            `;
+
+            try {
+                const response = await fetch('/api/issues');
+                const result = await response.json();
+
+                if (result.success) {
+                    const issuesHtml = result.issues.map(issue => `
+                        <tr>
+                            <td>${issue.number}</td>
+                            <td>${issue.title.length > 50 ? issue.title.substring(0, 50) + '...' : issue.title}</td>
+                            <td>${issue.state}</td>
+                            <td>${issue.labels.slice(0, 3).join(', ')}${issue.labels.length > 3 ? '...' : ''}</td>
+                            <td>${issue.assignees.slice(0, 2).join(', ')}${issue.assignees.length > 2 ? '...' : ''}</td>
+                        </tr>
+                    `).join('');
+
+                    stepsDiv.innerHTML = `
+                        <div class="step">
+                            <div class="step-title">Step 1: Listing GitHub Issues</div>
+                            <p>
+                                <span class="status-indicator ${result.demo_mode ? 'status-demo' : 'status-live'}">
+                                    ${result.demo_mode ? 'DEMO DATA' : 'LIVE DATA'}
+                                </span>
+                            </p>
+                            
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Number</th>
+                                        <th>Title</th>
+                                        <th>State</th>
+                                        <th>Labels</th>
+                                        <th>Assignees</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${issuesHtml}
+                                </tbody>
+                            </table>
+                            
+                            <p><strong>✅ Found ${result.issues.length} issues</strong></p>
+                        </div>
+                    `;
+
+                    document.getElementById('scope-btn').disabled = false;
+                } else {
+                    showError('Failed to fetch issues: ' + result.error);
+                }
+            } catch (error) {
+                showError('Failed to fetch issues: ' + error.message);
+            }
+        }
+
+        async function scopeIssue() {
+            const stepsDiv = document.getElementById('demo-steps');
+            stepsDiv.innerHTML += `
+                <div class="step">
+                    <div class="step-title">Step 2: Scoping Issue #123</div>
+                    <p class="loading">Analyzing issue with Devin AI...</p>
+                </div>
+            `;
+
+            try {
+                const response = await fetch('/api/scope/123');
+                const result = await response.json();
+
+                if (result.success) {
+                    const scope = result.result;
+                    const lastStep = stepsDiv.lastElementChild;
+                    
+                    lastStep.innerHTML = `
+                        <div class="step-title">Step 2: Scoping Issue #123</div>
+                        <p>
+                            <span class="status-indicator ${result.demo_mode ? 'status-demo' : 'status-live'}">
+                                ${result.demo_mode ? 'DEMO DATA' : 'LIVE DEVIN API'}
+                            </span>
+                        </p>
+                        
+                        <div class="panel high-confidence">
+                            <h3>Issue #123 Scope Analysis</h3>
+                            
+                            <p><strong>Confidence Score:</strong> <span class="confidence-high">${scope.confidence_score.toFixed(2)} (${scope.confidence_level})</span></p>
+                            <p><strong>Complexity:</strong> ${scope.complexity_assessment}</p>
+                            <p><strong>Estimated Effort:</strong> ${scope.estimated_effort}</p>
+                            
+                            <h4>Required Skills:</h4>
+                            <ul class="list">
+                                ${scope.required_skills.map(skill => `<li>${skill}</li>`).join('')}
+                            </ul>
+                            
+                            <h4>Action Plan:</h4>
+                            <ol class="list">
+                                ${scope.action_plan.map(step => `<li>${step}</li>`).join('')}
+                            </ol>
+                            
+                            <h4>Risks:</h4>
+                            <ul class="list">
+                                ${scope.risks.map(risk => `<li>${risk}</li>`).join('')}
+                            </ul>
+                            
+                            <p><strong>Devin Session:</strong> <a href="${scope.session_url}" class="url">${scope.session_url}</a></p>
+                        </div>
+                        
+                        <p><strong>✅ Issue scoped with ${(scope.confidence_score * 100).toFixed(0)}% confidence</strong></p>
+                    `;
+
+                    document.getElementById('complete-btn').disabled = false;
+                } else {
+                    showError('Failed to scope issue: ' + result.error);
+                }
+            } catch (error) {
+                showError('Failed to scope issue: ' + error.message);
+            }
+        }
+
+        async function completeIssue() {
+            const stepsDiv = document.getElementById('demo-steps');
+            stepsDiv.innerHTML += `
+                <div class="step">
+                    <div class="step-title">Step 3: Completing Issue #123</div>
+                    <p class="loading">Triggering Devin session to complete the issue...</p>
+                </div>
+            `;
+
+            try {
+                const response = await fetch('/api/complete/123');
+                const result = await response.json();
+
+                if (result.success) {
+                    const completion = result.result;
+                    const lastStep = stepsDiv.lastElementChild;
+                    
+                    lastStep.innerHTML = `
+                        <div class="step-title">Step 3: Completing Issue #123</div>
+                        <p>
+                            <span class="status-indicator ${result.demo_mode ? 'status-demo' : 'status-live'}">
+                                ${result.demo_mode ? 'DEMO DATA' : 'LIVE DEVIN API'}
+                            </span>
+                        </p>
+                        
+                        <div class="panel success">
+                            <h3>Issue #123 Completion Result</h3>
+                            
+                            <p><strong>Status:</strong> <span class="status-success">${completion.status}</span></p>
+                            <p><strong>Success:</strong> <span class="status-success">${completion.success}</span></p>
+                            
+                            <h4>Summary:</h4>
+                            <p>${completion.completion_summary}</p>
+                            
+                            <h4>Files Modified:</h4>
+                            <ul class="list">
+                                ${completion.files_modified.map(file => `<li>${file}</li>`).join('')}
+                            </ul>
+                            
+                            <p><strong>Pull Request:</strong> <a href="${completion.pull_request_url || '#'}" class="url">${completion.pull_request_url || 'None created'}</a></p>
+                            <p><strong>Devin Session:</strong> <a href="${completion.session_url}" class="url">${completion.session_url}</a></p>
+                        </div>
+                        
+                        <p><strong>✅ Issue completed successfully</strong></p>
+                    `;
+
+                    // Show summary
+                    stepsDiv.innerHTML += `
+                        <div class="summary">
+                            <h2><span class="emoji">✅</span> Demo Complete!</h2>
+                            <p>The GitHub Issues Integration successfully:</p>
+                            <ul class="list">
+                                <li>Listed issues from ${currentConfig.repo_name}</li>
+                                <li>Analyzed issue #123 with ${result.demo_mode ? 'demo' : 'live'} data</li>
+                                <li>Completed the issue ${result.demo_mode ? 'simulation' : 'using live Devin API'}</li>
+                            </ul>
+                            
+                            <h3>Mode Used:</h3>
+                            <p>
+                                <span class="status-indicator ${result.demo_mode ? 'status-demo' : 'status-live'}">
+                                    ${result.demo_mode ? 'DEMO MODE - Sample Data' : 'LIVE MODE - Real APIs'}
+                                </span>
+                            </p>
+                        </div>
+                    `;
+                } else {
+                    showError('Failed to complete issue: ' + result.error);
+                }
+            } catch (error) {
+                showError('Failed to complete issue: ' + error.message);
+            }
+        }
+
+        function resetDemo() {
+            document.getElementById('demo-steps').innerHTML = '';
+            document.getElementById('scope-btn').disabled = true;
+            document.getElementById('complete-btn').disabled = true;
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            document.getElementById('demo-steps').appendChild(errorDiv);
+        }
+    </script>
+</body>
+</html>

@@ -4,9 +4,10 @@
 
 I have successfully implemented a complete **GitHub Issues Integration with Devin** automation system that fulfills all the requirements from Task 1. This automation provides:
 
-1. **Issue Listing**: CLI tool and interactive dashboard for viewing GitHub issues
+1. **Issue Listing**: CLI tool and interactive web dashboard for viewing GitHub issues
 2. **Issue Scoping**: Devin API integration for automated issue analysis with confidence scoring
 3. **Task Completion**: Devin session triggering for automated issue completion
+4. **Server-Based Live API Integration**: Flask web server enabling web demo to access live GitHub and Devin APIs
 
 ## 📦 Deliverables
 
@@ -40,22 +41,42 @@ I have successfully implemented a complete **GitHub Issues Integration with Devi
    - Integration tests for API connectivity
    - Rich CLI output with formatted tables and panels
 
-6. **Documentation** (`README.md`, `Makefile`, `.env.example`)
+6. **Server-Based Web Demo** (`web_server.py`, `interactive_cli.py`, `demo_web_interactive.html`)
+   - Flask server for live API integration in web demos
+   - Interactive CLI configuration for demo mode selection
+   - Web interface with real-time GitHub and Devin API calls
+
+7. **Documentation** (`README.md`, `Makefile`, `.env.example`)
    - Comprehensive setup and usage instructions
    - Make targets for common operations
    - Environment configuration template
 
 ## 🚀 Key Features Implemented
 
-### 1. Issue Listing ✅
+### 1. Interactive Configuration ✅
+- **Interactive CLI**: `python3 interactive_cli.py`
+- Choose between CLI or Web demo interface
+- Optional GitHub token and Devin API key entry
+- Repository selection with automatic demo mode fallback
+- Seamless transition between demo and live API modes
+
+### 2. Server-Based Live API Integration ✅
+- **Flask Web Server**: `python3 web_server.py`
+- Live GitHub issues and Devin analysis in web interface
+- Server-side API credential handling for security
+- Real-time data integration with existing Python API clients
+- API endpoints: `/api/config`, `/api/issues`, `/api/scope/<id>`, `/api/complete/<id>`
+
+### 3. Issue Listing ✅
 - **CLI Command**: `python main.py list-issues --repo owner/repo`
 - **Demo Mode**: `python main.py list-issues --demo --repo owner/repo`
 - **Dashboard Mode**: `python main.py dashboard --repo owner/repo`
+- **Web Interface**: Interactive web demo with live GitHub issues
 - Rich formatted tables showing issue details
 - Filtering by state (open/closed) and pagination support
 - Automatic fallback to demo mode when API credentials are invalid
 
-### 2. Issue Scoping with Confidence Scoring ✅
+### 4. Issue Scoping with Confidence Scoring ✅
 - **CLI Command**: `python main.py scope-issue --repo owner/repo --issue-number 123`
 - **Demo Mode**: `python main.py scope-issue --demo --repo owner/repo --issue-number 123`
 - Devin API integration for automated issue analysis
@@ -67,7 +88,7 @@ I have successfully implemented a complete **GitHub Issues Integration with Devi
   - Step-by-step action plans
   - Risk assessment
 
-### 3. Task Completion Automation ✅
+### 5. Task Completion Automation ✅
 - **CLI Command**: `python main.py complete-issue --repo owner/repo --issue-number 123`
 - **Demo Mode**: `python main.py complete-issue --demo --repo owner/repo --issue-number 123 --scope-first`
 - Devin session triggering for automated issue completion
@@ -78,14 +99,14 @@ I have successfully implemented a complete **GitHub Issues Integration with Devi
   - Success/failure status
   - Session URLs for monitoring
 
-### 4. Interactive Dashboard ✅
+### 6. Interactive Dashboard ✅
 - **CLI Command**: `python main.py dashboard --repo owner/repo`
 - **Demo Mode**: `python main.py dashboard --demo --repo owner/repo`
 - Real-time issue management interface
 - Interactive scoping and completion workflows
 - Issue refresh and navigation capabilities
 
-### 5. Demo Mode & Error Handling ✅
+### 7. Demo Mode & Error Handling ✅
 - **Graceful Fallback**: Commands automatically use demo mode when API credentials are invalid
 - **Helpful Warnings**: Clear messages guide users to set up API keys or use demo mode
 - **Consistent Demo Data**: Uses same DemoData class across CLI and standalone demo
@@ -94,12 +115,31 @@ I have successfully implemented a complete **GitHub Issues Integration with Devi
 
 ## 🎬 Demo Functionality
 
-The `demo.py` script provides a complete demonstration of the automation workflow:
+### Interactive Configuration Demo (Recommended)
+```bash
+python3 interactive_cli.py
+```
+**Features**:
+- Choose CLI or Web demo interface
+- Optional API credential entry
+- Repository selection
+- Automatic demo/live mode detection
 
+### Server-Based Web Demo
+```bash
+python3 web_server.py
+# Open http://127.0.0.1:5000 in browser
+```
+**Features**:
+- Live GitHub issues integration
+- Real-time Devin API scoping and completion
+- Interactive web interface with status indicators
+- Secure server-side API credential handling
+
+### Traditional CLI Demo
 ```bash
 python demo.py
 ```
-
 **Demo Output Includes**:
 - Sample GitHub issues display
 - Issue #123 scoping analysis (85% confidence)
@@ -130,6 +170,19 @@ async def scope_issue(self, issue: GitHubIssue) -> IssueScopeResult:
 
 ## 📋 Usage Examples
 
+### Interactive Configuration (Recommended)
+```bash
+# Interactive demo with live API support
+python3 interactive_cli.py
+```
+
+### Server-Based Web Demo
+```bash
+# Start web server with live API integration
+python3 web_server.py
+# Then open http://127.0.0.1:5000 in browser
+```
+
 ### Demo Mode (No API Keys Required)
 ```bash
 # List demo issues
@@ -146,6 +199,9 @@ python main.py dashboard --demo --repo test/repo
 
 # Standalone demo (comprehensive workflow)
 python demo.py
+
+# Static web demo (sample data only)
+open demo_web.html
 ```
 
 ### Production Mode (API Keys Required)
@@ -189,6 +245,21 @@ DEVIN_API_BASE=https://api.devin.ai/v1
 
 ## 📊 Testing Results
 
+### Interactive Configuration Testing ✅
+- Interactive CLI successfully prompts for demo mode choice (CLI/Web)
+- Credential input handling works correctly (optional entry)
+- Repository selection with validation
+- Automatic demo mode fallback when no credentials provided
+- Seamless transition to selected demo interface
+
+### Server-Based Web Demo Testing ✅
+- Flask server starts successfully and serves interactive web interface
+- Live API integration works with GitHub issues endpoint
+- Devin API scoping and completion endpoints function correctly
+- Web interface displays real-time data with proper status indicators
+- Server-side credential handling maintains security
+- Demo mode fallback works when no credentials configured
+
 ### Demo Mode Testing ✅
 - Successfully demonstrated complete workflow
 - Rich formatted output with proper color coding
@@ -230,21 +301,26 @@ DEVIN_API_BASE=https://api.devin.ai/v1
 
 ```
 github-issues-automation/
-├── main.py                 # CLI entry point
-├── cli.py                  # CLI command implementations
-├── github_client.py        # GitHub API integration
-├── devin_client.py         # Devin API integration
-├── models.py               # Data models and types
-├── config.py               # Configuration management
-├── utils.py                # Utility functions
-├── exceptions.py           # Custom exceptions
-├── demo.py                 # Demo mode with sample data
-├── test_integration.py     # Integration tests
-├── requirements.txt        # Python dependencies
-├── README.md               # Project documentation
-├── Makefile                # Build and run targets
-├── .env.example            # Environment template
-└── DELIVERABLES.md         # This summary document
+├── main.py                      # CLI entry point
+├── cli.py                       # CLI command implementations
+├── github_client.py             # GitHub API integration
+├── devin_client.py              # Devin API integration
+├── models.py                    # Data models and types
+├── config.py                    # Configuration management
+├── utils.py                     # Utility functions
+├── exceptions.py                # Custom exceptions
+├── demo.py                      # Demo mode with sample data
+├── interactive_cli.py           # Interactive configuration CLI
+├── web_server.py                # Flask server for live API integration
+├── demo_web_interactive.html    # Interactive web interface
+├── demo_web.html                # Static web demo
+├── simple_demo.py               # Basic Python 3.x demo
+├── test_integration.py          # Integration tests
+├── requirements.txt             # Python dependencies (includes Flask)
+├── README.md                    # Project documentation
+├── Makefile                     # Build and run targets
+├── .env.example                 # Environment template
+└── DELIVERABLES.md              # This summary document
 ```
 
 ## 🚀 Next Steps for Production Use

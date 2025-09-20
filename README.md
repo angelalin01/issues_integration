@@ -8,21 +8,32 @@ This automation integrates Devin with GitHub Issues to provide:
 
 ## Quick Demo (No Setup Required)
 
-### Option 1: Web Interface Demo (Works in any browser)
-Interactive web demo with GitHub-themed interface:
+### Option 1: Interactive Demo (Recommended)
+Configure credentials and choose CLI or Web interface:
+```bash
+python3 interactive_cli.py
+```
+This will prompt you to:
+- Choose CLI or Web demo
+- Enter GitHub token (optional - leave empty for demo mode)
+- Enter Devin API key (optional - leave empty for demo mode)  
+- Specify GitHub repository to analyze
+
+### Option 2: Static Web Demo (Basic)
+Static web demo with hardcoded sample data:
 ```bash
 # Open in your browser
 open demo_web.html
 # Or on Linux/Windows: double-click demo_web.html
 ```
 
-### Option 2: Simple CLI Demo (Works with basic Python 3.x)
+### Option 3: Simple CLI Demo (Works with basic Python 3.x)
 If you have Python 3.x but don't want to install dependencies:
 ```bash
 python3 simple_demo.py
 ```
 
-### Option 3: Rich CLI Demo (Requires Python 3.8+)
+### Option 4: Rich CLI Demo (Requires Python 3.8+)
 For rich formatting and full CLI experience:
 ```bash
 python3 demo.py
@@ -61,11 +72,24 @@ python3 demo.py
 
 ## Usage
 
-### Demo Mode (No API Keys Required)
+### Demo Mode Options
 
-#### Web Interface Demo
+#### Interactive Demo (Recommended)
 ```bash
-# Interactive web demo (no dependencies required)
+# Interactive configuration with live API support
+python interactive_cli.py
+```
+
+#### Web Server Demo (Live API Support)
+```bash
+# Start web server with live API integration
+python web_server.py
+# Then open http://127.0.0.1:5000 in your browser
+```
+
+#### Static Web Demo
+```bash
+# Static web demo (sample data only)
 open demo_web.html
 ```
 

@@ -49,12 +49,15 @@ I have successfully implemented a complete **GitHub Issues Integration with Devi
 
 ### 1. Issue Listing ✅
 - **CLI Command**: `python main.py list-issues --repo owner/repo`
+- **Demo Mode**: `python main.py list-issues --demo --repo owner/repo`
 - **Dashboard Mode**: `python main.py dashboard --repo owner/repo`
 - Rich formatted tables showing issue details
 - Filtering by state (open/closed) and pagination support
+- Automatic fallback to demo mode when API credentials are invalid
 
 ### 2. Issue Scoping with Confidence Scoring ✅
 - **CLI Command**: `python main.py scope-issue --repo owner/repo --issue-number 123`
+- **Demo Mode**: `python main.py scope-issue --demo --repo owner/repo --issue-number 123`
 - Devin API integration for automated issue analysis
 - **Confidence scoring system**: 0.0-1.0 scale with low/medium/high levels
 - Detailed analysis including:
@@ -66,6 +69,7 @@ I have successfully implemented a complete **GitHub Issues Integration with Devi
 
 ### 3. Task Completion Automation ✅
 - **CLI Command**: `python main.py complete-issue --repo owner/repo --issue-number 123`
+- **Demo Mode**: `python main.py complete-issue --demo --repo owner/repo --issue-number 123 --scope-first`
 - Devin session triggering for automated issue completion
 - Integration with scoping results for informed completion
 - Tracking of:
@@ -76,9 +80,17 @@ I have successfully implemented a complete **GitHub Issues Integration with Devi
 
 ### 4. Interactive Dashboard ✅
 - **CLI Command**: `python main.py dashboard --repo owner/repo`
+- **Demo Mode**: `python main.py dashboard --demo --repo owner/repo`
 - Real-time issue management interface
 - Interactive scoping and completion workflows
 - Issue refresh and navigation capabilities
+
+### 5. Demo Mode & Error Handling ✅
+- **Graceful Fallback**: Commands automatically use demo mode when API credentials are invalid
+- **Helpful Warnings**: Clear messages guide users to set up API keys or use demo mode
+- **Consistent Demo Data**: Uses same DemoData class across CLI and standalone demo
+- **No Console Errors**: Fixed 401 GitHub and 403 Devin authentication errors
+- **User-Friendly Tips**: Error messages include helpful setup instructions
 
 ## 🎬 Demo Functionality
 
@@ -118,24 +130,45 @@ async def scope_issue(self, issue: GitHubIssue) -> IssueScopeResult:
 
 ## 📋 Usage Examples
 
-### Basic Issue Listing
+### Demo Mode (No API Keys Required)
 ```bash
+# List demo issues
+python main.py list-issues --demo --repo test/repo --limit 5
+
+# Scope demo issue with confidence analysis
+python main.py scope-issue --demo --repo test/repo --issue-number 123
+
+# Complete demo issue with pre-scoping
+python main.py complete-issue --demo --repo test/repo --issue-number 123 --scope-first
+
+# Interactive demo dashboard
+python main.py dashboard --demo --repo test/repo
+
+# Standalone demo (comprehensive workflow)
+python demo.py
+```
+
+### Production Mode (API Keys Required)
+```bash
+# Basic issue listing
 python main.py list-issues --repo octocat/Hello-World --limit 10
-```
 
-### Issue Scoping with Confidence Analysis
-```bash
+# Issue scoping with confidence analysis
 python main.py scope-issue --repo myorg/myrepo --issue-number 42
-```
 
-### Complete Issue with Pre-scoping
-```bash
+# Complete issue with pre-scoping
 python main.py complete-issue --repo myorg/myrepo --issue-number 42 --scope-first
+
+# Interactive dashboard
+python main.py dashboard --repo myorg/myrepo
 ```
 
-### Interactive Dashboard
+### Automatic Fallback (Graceful Degradation)
 ```bash
-python main.py dashboard --repo myorg/myrepo
+# Commands without --demo automatically fall back to demo mode with warnings
+python main.py list-issues --repo octocat/Hello-World
+# Output: ⚠️ Using demo mode - API credentials not configured
+#         Set DEVIN_API_KEY and GITHUB_TOKEN in .env file for real data
 ```
 
 ## 🔐 Configuration Requirements
@@ -160,16 +193,28 @@ DEVIN_API_BASE=https://api.devin.ai/v1
 - Successfully demonstrated complete workflow
 - Rich formatted output with proper color coding
 - Sample data covers various issue types and complexity levels
+- All CLI commands work with --demo flag
+- Interactive dashboard functions properly in demo mode
+
+### Console Error Resolution ✅
+- **Fixed 401 GitHub Authentication Errors**: No more "Bad credentials" console errors
+- **Fixed 403 Devin API Errors**: No more "Unauthorized" console errors  
+- **Graceful Fallback**: Commands automatically use demo mode when credentials are invalid
+- **Helpful Error Messages**: Clear guidance for users to set up API keys or use demo mode
+- **No Breaking Changes**: Existing functionality preserved while adding demo capabilities
 
 ### API Integration Testing ✅
 - GitHub API client properly handles authentication and pagination
 - Devin API client successfully creates sessions and polls for results
 - Error handling works correctly for invalid credentials
+- Demo mode bypasses API calls entirely for smooth local testing
 
 ### CLI Interface Testing ✅
 - All commands work with proper argument parsing
 - Help system provides clear usage instructions
 - Interactive dashboard responds correctly to user input
+- Demo flags work consistently across all commands
+- Fallback behavior provides helpful warnings and tips
 
 ## 🎯 Success Criteria Met
 

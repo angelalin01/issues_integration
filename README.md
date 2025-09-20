@@ -6,43 +6,91 @@ This automation integrates Devin with GitHub Issues to provide:
 2. **Issue Scoping**: Trigger Devin sessions to analyze issues and assign confidence scores
 3. **Task Completion**: Trigger Devin sessions to complete issues based on action plans
 
-## Setup
+## Quick Demo (No Setup Required)
 
-1. Copy `.env.example` to `.env` and fill in your API keys:
+### Option 1: Simple Demo (Works with basic Python 3.x)
+If you have Python 3.x but don't want to install dependencies:
+```bash
+python3 simple_demo.py
+```
+
+### Option 2: Full Demo (Requires Python 3.8+)
+For rich formatting and full CLI experience:
+```bash
+python3 demo.py
+```
+
+## Full Setup (Python 3.8+ Required)
+
+**Important**: This project requires Python 3.8 or higher. If you're using Python 2.7, please upgrade first.
+
+1. **Check Python version**:
    ```bash
-   cp .env.example .env
+   python3 --version  # Should be 3.8 or higher
    ```
 
-2. Install dependencies:
+2. **Create virtual environment**:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. **Install dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Run the CLI tool:
+4. **Copy environment file** (optional for demo):
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys if you want to use real GitHub/Devin APIs
+   ```
+
+5. **Run the CLI tool**:
    ```bash
    python main.py --help
    ```
 
 ## Usage
 
-### List Issues
+### Demo Mode (No API Keys Required)
 ```bash
+# List demo issues
+python main.py list-issues --demo --repo test/repo
+
+# Scope demo issue with confidence analysis
+python main.py scope-issue --demo --repo test/repo --issue-number 123
+
+# Complete demo issue with pre-scoping
+python main.py complete-issue --demo --repo test/repo --issue-number 123 --scope-first
+
+# Interactive demo dashboard
+python main.py dashboard --demo --repo test/repo
+
+# Full workflow demo
+python demo.py
+```
+
+### Production Mode (API Keys Required)
+```bash
+# List real GitHub issues
 python main.py list-issues --repo owner/repo
-```
 
-### Scope Issue
-```bash
+# Scope real issue
 python main.py scope-issue --repo owner/repo --issue-number 123
-```
 
-### Complete Issue
-```bash
+# Complete real issue
 python main.py complete-issue --repo owner/repo --issue-number 123
+
+# Interactive dashboard
+python main.py dashboard --repo owner/repo
 ```
 
-### Dashboard Mode
+### Automatic Fallback
+Commands automatically use demo mode with helpful warnings when API credentials are not configured:
 ```bash
-python main.py dashboard --repo owner/repo
+python main.py list-issues --repo octocat/Hello-World
+# Output: ⚠️ Using demo mode - API credentials not configured
 ```
 
 ## Configuration

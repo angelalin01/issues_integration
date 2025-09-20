@@ -8,13 +8,20 @@ from typing import List
 from github_client import GitHubClient
 from devin_client import DevinClient
 from models import GitHubIssue, IssueScopeResult, TaskCompletionResult
+from config import Config
+from demo import DemoData
 
 console = Console()
 
 class CLI:
-    def __init__(self):
-        self.github_client = GitHubClient()
-        self.devin_client = DevinClient()
+    def __init__(self, demo_mode=False):
+        self.demo_mode = demo_mode
+        if not demo_mode and Config.has_valid_credentials():
+            self.github_client = GitHubClient()
+            self.devin_client = DevinClient()
+        else:
+            self.github_client = None
+            self.devin_client = None
     
     def display_issues(self, issues: List[GitHubIssue]):
         """Display issues in a formatted table"""
@@ -99,8 +106,21 @@ def cli():
 @click.option('--repo', required=True, help='Repository name (owner/repo)')
 @click.option('--state', default='open', help='Issue state (open/closed)')
 @click.option('--limit', default=20, help='Maximum number of issues to display')
-def list_issues(repo: str, state: str, limit: int):
+@click.option('--demo', is_flag=True, help='Use demo mode with sample data')
+def list_issues(repo: str, state: str, limit: int, demo: bool):
     """List GitHub issues"""
+    
+    if demo or not Config.has_valid_credentials():
+        if not demo:
+            console.print("[yellow]⚠️  Using demo mode - API credentials not configured[/yellow]")
+            console.print("[dim]Set DEVIN_API_KEY and GITHUB_TOKEN in .env file for real data[/dim]\n")
+        
+        issues = DemoData.get_sample_issues()[:limit]
+        cli_instance = CLI(demo_mode=True)
+        cli_instance.display_issues(issues)
+        console.print(f"\n[green]Showing {len(issues)} demo issues[/green]")
+        return
+    
     cli_instance = CLI()
     
     try:
@@ -116,12 +136,26 @@ def list_issues(repo: str, state: str, limit: int):
         
     except Exception as e:
         console.print(f"[red]Error: {str(e)}[/red]")
+        console.print(f"[dim]Tip: Use --demo flag to see sample data, or configure API keys in .env file[/dim]")
 
 @cli.command()
 @click.option('--repo', required=True, help='Repository name (owner/repo)')
 @click.option('--issue-number', required=True, type=int, help='Issue number to scope')
-def scope_issue(repo: str, issue_number: int):
+@click.option('--demo', is_flag=True, help='Use demo mode with sample data')
+def scope_issue(repo: str, issue_number: int, demo: bool):
     """Scope an issue using Devin"""
+    
+    if demo or not Config.has_valid_credentials():
+        if not demo:
+            console.print("[yellow]⚠️  Using demo mode - API credentials not configured[/yellow]")
+            console.print("[dim]Set DEVIN_API_KEY and GITHUB_TOKEN in .env file for real data[/dim]\n")
+        
+        scope_result = DemoData.get_sample_scope_result(issue_number)
+        cli_instance = CLI(demo_mode=True)
+        console.print(f"[blue]Scoping demo issue #{issue_number}[/blue]")
+        cli_instance.display_scope_result(scope_result)
+        return
+    
     cli_instance = CLI()
     
     async def run_scope():
@@ -138,6 +172,7 @@ def scope_issue(repo: str, issue_number: int):
             
         except Exception as e:
             console.print(f"[red]Error: {str(e)}[/red]")
+            console.print(f"[dim]Tip: Use --demo flag to see sample data, or configure API keys in .env file[/dim]")
     
     asyncio.run(run_scope())
 
@@ -145,8 +180,29 @@ def scope_issue(repo: str, issue_number: int):
 @click.option('--repo', required=True, help='Repository name (owner/repo)')
 @click.option('--issue-number', required=True, type=int, help='Issue number to complete')
 @click.option('--scope-first', is_flag=True, help='Scope the issue first before completing')
-def complete_issue(repo: str, issue_number: int, scope_first: bool):
+@click.option('--demo', is_flag=True, help='Use demo mode with sample data')
+def complete_issue(repo: str, issue_number: int, scope_first: bool, demo: bool):
     """Complete an issue using Devin"""
+    
+    if demo or not Config.has_valid_credentials():
+        if not demo:
+            console.print("[yellow]⚠️  Using demo mode - API credentials not configured[/yellow]")
+            console.print("[dim]Set DEVIN_API_KEY and GITHUB_TOKEN in .env file for real data[/dim]\n")
+        
+        cli_instance = CLI(demo_mode=True)
+        console.print(f"[blue]Completing demo issue #{issue_number}[/blue]")
+        
+        if scope_first:
+            scope_result = DemoData.get_sample_scope_result(issue_number)
+            cli_instance.display_scope_result(scope_result)
+            if not click.confirm(f"Proceed with completion? (Confidence: {scope_result.confidence_score:.2f})"):
+                console.print("[yellow]Completion cancelled[/yellow]")
+                return
+        
+        completion_result = DemoData.get_sample_completion_result(issue_number)
+        cli_instance.display_completion_result(completion_result)
+        return
+    
     cli_instance = CLI()
     
     async def run_completion():
@@ -173,13 +229,72 @@ def complete_issue(repo: str, issue_number: int, scope_first: bool):
             
         except Exception as e:
             console.print(f"[red]Error: {str(e)}[/red]")
+            console.print(f"[dim]Tip: Use --demo flag to see sample data, or configure API keys in .env file[/dim]")
     
     asyncio.run(run_completion())
 
 @cli.command()
 @click.option('--repo', required=True, help='Repository name (owner/repo)')
-def dashboard(repo: str):
+@click.option('--demo', is_flag=True, help='Use demo mode with sample data')
+def dashboard(repo: str, demo: bool):
     """Interactive dashboard for managing issues"""
+    
+    if demo or not Config.has_valid_credentials():
+        if not demo:
+            console.print("[yellow]⚠️  Using demo mode - API credentials not configured[/yellow]")
+            console.print("[dim]Set DEVIN_API_KEY and GITHUB_TOKEN in .env file for real data[/dim]\n")
+        
+        issues = DemoData.get_sample_issues()
+        cli_instance = CLI(demo_mode=True)
+        
+        while True:
+            console.clear()
+            console.print(f"[bold blue]GitHub Issues Dashboard - Demo Mode[/bold blue]\n")
+            
+            cli_instance.display_issues(issues)
+            
+            console.print("\n[bold]Actions:[/bold]")
+            console.print("1. Scope an issue")
+            console.print("2. Complete an issue")
+            console.print("3. Refresh issues")
+            console.print("4. Exit")
+            
+            choice = click.prompt("\nSelect an action", type=int)
+            
+            if choice == 1:
+                issue_num = click.prompt("Enter issue number to scope", type=int)
+                issue = next((i for i in issues if i.number == issue_num), None)
+                if issue:
+                    scope_result = DemoData.get_sample_scope_result(issue_num)
+                    cli_instance.display_scope_result(scope_result)
+                    click.pause()
+                else:
+                    console.print(f"[red]Issue #{issue_num} not found[/red]")
+                    click.pause()
+            
+            elif choice == 2:
+                issue_num = click.prompt("Enter issue number to complete", type=int)
+                issue = next((i for i in issues if i.number == issue_num), None)
+                if issue:
+                    completion_result = DemoData.get_sample_completion_result(issue_num)
+                    cli_instance.display_completion_result(completion_result)
+                    click.pause()
+                else:
+                    console.print(f"[red]Issue #{issue_num} not found[/red]")
+                    click.pause()
+            
+            elif choice == 3:
+                console.print("[dim]Demo data refreshed[/dim]")
+                click.pause()
+            
+            elif choice == 4:
+                break
+            
+            else:
+                console.print("[red]Invalid choice[/red]")
+                click.pause()
+        return
+    
     cli_instance = CLI()
     
     try:
@@ -243,6 +358,7 @@ def dashboard(repo: str):
     
     except Exception as e:
         console.print(f"[red]Error: {str(e)}[/red]")
+        console.print(f"[dim]Tip: Use --demo flag to see sample data, or configure API keys in .env file[/dim]")
 
 if __name__ == '__main__':
     cli()

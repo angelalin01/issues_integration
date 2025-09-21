@@ -205,6 +205,12 @@
                 <label for="repo-name">GitHub Repository (e.g., octocat/Hello-World):</label>
                 <input type="text" id="repo-name" placeholder="octocat/Hello-World" value="octocat/Hello-World">
             </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="enable-commenting" style="margin-right: 8px;">
+                    Enable GitHub commenting (posts results as issue comments)
+                </label>
+            </div>
             <button class="btn" onclick="configure()">Configure & Start Demo</button>
             <div id="config-status"></div>
         </div>
@@ -215,6 +221,12 @@
                 <button class="btn" id="scope-btn" onclick="scopeIssue()" disabled>Scope Issue #123</button>
                 <button class="btn" id="complete-btn" onclick="completeIssue()" disabled>Complete Issue #123</button>
                 <button class="btn" onclick="resetDemo()">Reset</button>
+            </div>
+            
+            <div class="demo-controls" style="margin-top: 10px;">
+                <button class="btn" onclick="clearCache()" style="background-color: #f85149;">Clear Cache</button>
+                <button class="btn" onclick="cleanupComments()" style="background-color: #da3633; margin-left: 10px;">Cleanup Comments</button>
+                <div id="management-status" style="margin-top: 10px;"></div>
             </div>
 
             <div id="demo-steps"></div>
@@ -231,6 +243,7 @@
             const githubToken = document.getElementById('github-token').value.trim();
             const devinApiKey = document.getElementById('devin-api-key').value.trim();
             const repoName = document.getElementById('repo-name').value.trim();
+            const enableCommenting = document.getElementById('enable-commenting').checked;
 
             if (!repoName) {
                 showError('Please enter a repository name');
@@ -246,7 +259,8 @@
                     body: JSON.stringify({
                         github_token: githubToken || null,
                         devin_api_key: devinApiKey || null,
-                        repo_name: repoName
+                        repo_name: repoName,
+                        enable_commenting: enableCommenting
                     })
                 });
 
@@ -360,12 +374,23 @@
                     const scope = result.result;
                     const lastStep = stepsDiv.lastElementChild;
                     
+                    let statusBadges = '';
+                    if (result.cached) statusBadges += '<span style="background: #f85149; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">CACHED</span>';
+                    if (scope.comment_posted) {
+                        if (scope.comment_posted.success) {
+                            statusBadges += '<span style="background: #238636; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">COMMENTED</span>';
+                        } else {
+                            statusBadges += '<span style="background: #da3633; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">COMMENT FAILED</span>';
+                        }
+                    }
+                    
                     lastStep.innerHTML = `
-                        <div class="step-title">Step 2: Scoping Issue #123</div>
+                        <div class="step-title">Step 2: Scoping Issue #123${statusBadges}</div>
                         <p>
                             <span class="status-indicator ${result.demo_mode ? 'status-demo' : 'status-live'}">
                                 ${result.demo_mode ? 'DEMO DATA' : 'LIVE DEVIN API'}
                             </span>
+                            ${result.cached ? '<span class="status-indicator" style="background: #f85149; margin-left: 8px;">FROM CACHE</span>' : ''}
                         </p>
                         
                         <div class="panel high-confidence">
@@ -391,6 +416,8 @@
                             </ul>
                             
                             <p><strong>Devin Session:</strong> <a href="${scope.session_url}" class="url">${scope.session_url}</a></p>
+                            ${scope.comment_posted && scope.comment_posted.success ? 
+                                `<p><strong>GitHub Comment:</strong> <a href="${scope.comment_posted.comment_url}" target="_blank" class="url">View Comment</a></p>` : ''}
                         </div>
                         
                         <p><strong>✅ Issue scoped with ${(scope.confidence_score * 100).toFixed(0)}% confidence</strong></p>
@@ -422,12 +449,23 @@
                     const completion = result.result;
                     const lastStep = stepsDiv.lastElementChild;
                     
+                    let statusBadges = '';
+                    if (result.cached) statusBadges += '<span style="background: #f85149; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">CACHED</span>';
+                    if (completion.comment_posted) {
+                        if (completion.comment_posted.success) {
+                            statusBadges += '<span style="background: #238636; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">COMMENTED</span>';
+                        } else {
+                            statusBadges += '<span style="background: #da3633; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">COMMENT FAILED</span>';
+                        }
+                    }
+                    
                     lastStep.innerHTML = `
-                        <div class="step-title">Step 3: Completing Issue #123</div>
+                        <div class="step-title">Step 3: Completing Issue #123${statusBadges}</div>
                         <p>
                             <span class="status-indicator ${result.demo_mode ? 'status-demo' : 'status-live'}">
                                 ${result.demo_mode ? 'DEMO DATA' : 'LIVE DEVIN API'}
                             </span>
+                            ${result.cached ? '<span class="status-indicator" style="background: #f85149; margin-left: 8px;">FROM CACHE</span>' : ''}
                         </p>
                         
                         <div class="panel success">
@@ -446,6 +484,8 @@
                             
                             <p><strong>Pull Request:</strong> <a href="${completion.pull_request_url || '#'}" class="url">${completion.pull_request_url || 'None created'}</a></p>
                             <p><strong>Devin Session:</strong> <a href="${completion.session_url}" class="url">${completion.session_url}</a></p>
+                            ${completion.comment_posted && completion.comment_posted.success ? 
+                                `<p><strong>GitHub Comment:</strong> <a href="${completion.comment_posted.comment_url}" target="_blank" class="url">View Comment</a></p>` : ''}
                         </div>
                         
                         <p><strong>✅ Issue completed successfully</strong></p>
@@ -489,6 +529,69 @@
             errorDiv.className = 'error';
             errorDiv.textContent = message;
             document.getElementById('demo-steps').appendChild(errorDiv);
+        }
+        
+        async function clearCache() {
+            showManagementStatus('Clearing cache...', 'info');
+            
+            try {
+                const response = await fetch('/api/cache/clear', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showManagementStatus(`Cache cleared: ${result.cleared_files.length} files removed`, 'success');
+                } else {
+                    showManagementStatus(`Error clearing cache: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showManagementStatus(`Error clearing cache: ${error.message}`, 'error');
+            }
+        }
+        
+        async function cleanupComments() {
+            showManagementStatus('Cleaning up comments...', 'info');
+            
+            // For demo purposes, use issue numbers 123-127
+            const issueNumbers = [123, 124, 125, 126, 127];
+            
+            try {
+                const response = await fetch('/api/cleanup/comments', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        issue_numbers: issueNumbers
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    let message = `Comments cleanup completed: ${result.deleted_count} comments deleted`;
+                    if (result.errors && result.errors.length > 0) {
+                        message += ` (${result.errors.length} errors)`;
+                    }
+                    showManagementStatus(message, 'success');
+                } else {
+                    showManagementStatus(`Error cleaning up comments: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showManagementStatus(`Error cleaning up comments: ${error.message}`, 'error');
+            }
+        }
+        
+        function showManagementStatus(message, type) {
+            const statusDiv = document.getElementById('management-status');
+            const className = type === 'success' ? 'status-success' : type === 'error' ? 'error' : 'loading';
+            statusDiv.innerHTML = `<div class="${className}">${message}</div>`;
         }
     </script>
 </body>

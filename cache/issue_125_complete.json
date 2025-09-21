@@ -1,0 +1,14 @@
+{
+  "status": "completed",
+  "success": true,
+  "completion_summary": "Updated button styles for better accessibility and modern design. Improved responsive behavior across devices.",
+  "files_modified": [
+    "src/styles/buttons.css",
+    "src/components/Button.jsx",
+    "docs/style-guide.md"
+  ],
+  "pull_request_url": "https://github.com/example/repo/pull/458",
+  "session_id": "demo_completion_125",
+  "session_url": "https://app.devin.ai/sessions/demo_completion_125",
+  "cached_at": "2025-09-21T18:01:00Z"
+}

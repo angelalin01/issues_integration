@@ -176,17 +176,27 @@ def get_devin_client():
     """Get Devin client with runtime config"""
     if runtime_config['demo_mode'] or not runtime_config['devin_api_key']:
         return None
-    
-    original_key = os.environ.get('DEVIN_API_KEY')
+
+    from config import Config as _Cfg
+    original_key_env = os.environ.get('DEVIN_API_KEY')
+    original_key_cfg = getattr(_Cfg, 'DEVIN_API_KEY', None)
+
     os.environ['DEVIN_API_KEY'] = runtime_config['devin_api_key']
-    
+    _Cfg.DEVIN_API_KEY = runtime_config['devin_api_key']
+
     try:
-        return DevinClient()
+        print(f"[get_devin_client] Using Devin key prefix: {str(runtime_config['devin_api_key'])[:6]}")
+        try:
+            return DevinClient()
+        except Exception as e:
+            print(f"[get_devin_client] DevinClient init error: {e}")
+            raise
     finally:
-        if original_key:
-            os.environ['DEVIN_API_KEY'] = original_key
+        if original_key_env is not None:
+            os.environ['DEVIN_API_KEY'] = original_key_env
         elif 'DEVIN_API_KEY' in os.environ:
             del os.environ['DEVIN_API_KEY']
+        _Cfg.DEVIN_API_KEY = original_key_cfg
 
 def load_cached_result(issue_number: int, result_type: str):
     """Load cached result from file"""
@@ -280,6 +290,24 @@ def configure():
         'repo_name': runtime_config['repo_name'],
         'enable_commenting': runtime_config['enable_commenting']
     })
+@app.route('/api/test-devin-auth')
+def test_devin_auth():
+    try:
+        if runtime_config['demo_mode'] or not runtime_config['devin_api_key']:
+            return jsonify({'success': False, 'error': 'Configure a Devin API key first (not in demo mode).'})
+        devin_client = get_devin_client()
+        if not devin_client:
+            return jsonify({'success': False, 'error': 'Devin client unavailable'})
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            session = loop.run_until_complete(devin_client.create_session("Auth test: please just acknowledge."))
+            return jsonify({'success': True, 'session_id': session.session_id, 'session_url': session.url})
+        finally:
+            loop.close()
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 
 @app.route('/api/issues')
 def list_issues():

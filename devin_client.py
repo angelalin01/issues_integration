@@ -1,5 +1,6 @@
 import asyncio
 import aiohttp
+import json
 from typing import Optional, Dict, Any
 from datetime import datetime
 from models import DevinSession, IssueScopeResult, TaskCompletionResult, ConfidenceLevel, GitHubIssue
@@ -7,8 +8,9 @@ from config import Config
 
 class DevinClient:
     def __init__(self):
-        Config.validate()
         self.api_key = Config.DEVIN_API_KEY
+        if not self.api_key or str(self.api_key).startswith("placeholder"):
+            raise ValueError("DEVIN_API_KEY environment variable is required. Please set a valid Devin API key.")
         self.api_base = Config.DEVIN_API_BASE
         self.headers = {"Authorization": f"Bearer {self.api_key}"}
     
@@ -24,10 +26,20 @@ class DevinClient:
                     raise Exception(f"Failed to create Devin session: {response.status} - {error_text}")
                 
                 data = await response.json()
+                try:
+                    print("[DevinClient.create_session] raw:", data)
+                except Exception:
+                    pass
+                status_val = (data.get("status") if isinstance(data, dict) else None) or "running"
+                session_id = None
+                url = ""
+                if isinstance(data, dict):
+                    session_id = data.get("session_id") or data.get("id") or ""
+                    url = data.get("url") or data.get("session_url") or ""
                 return DevinSession(
-                    session_id=data["session_id"],
-                    url=data["url"],
-                    status=data.get("status", "running"),
+                    session_id=session_id or "",
+                    url=url,
+                    status=status_val,
                     created_at=datetime.now()
                 )
     
@@ -42,12 +54,24 @@ class DevinClient:
                     raise Exception(f"Failed to get session status: {response.status} - {error_text}")
                 
                 data = await response.json()
+                try:
+                    print("[DevinClient.get_session_status] raw:", data)
+                except Exception:
+                    pass
+                obj = data if isinstance(data, dict) else {}
+                status_val = obj.get("status") or obj.get("status_enum") or "unknown"
+                structured = obj.get("structured_output") or obj.get("output")
+                if isinstance(structured, str):
+                    try:
+                        structured = json.loads(structured)
+                    except Exception:
+                        structured = {"text": structured}
                 return DevinSession(
                     session_id=session_id,
-                    url=data.get("url", ""),
-                    status=data.get("status_enum", "unknown"),
+                    url=obj.get("url", "") or obj.get("session_url", ""),
+                    status=status_val,
                     created_at=datetime.now(),
-                    structured_output=data.get("structured_output")
+                    structured_output=structured
                 )
     
     async def wait_for_completion(self, session_id: str, max_wait_time: int = 1800) -> DevinSession:
@@ -98,8 +122,18 @@ Format your response as JSON with these exact field names.
         completed_session = await self.wait_for_completion(session.session_id)
         
         output = completed_session.structured_output or {}
+        if isinstance(output, str):
+            try:
+                output = json.loads(output)
+            except Exception:
+                output = {}
         
-        confidence_score = float(output.get("confidence_score", 0.5))
+        cs_raw = output.get("confidence_score") or output.get("confidence") or 0.5
+        try:
+            confidence_score = float(cs_raw)
+        except Exception:
+            confidence_score = 0.5
+        
         if confidence_score >= 0.8:
             confidence_level = ConfidenceLevel.HIGH
         elif confidence_score >= 0.5:
@@ -111,11 +145,11 @@ Format your response as JSON with these exact field names.
             issue_number=issue.number,
             confidence_score=confidence_score,
             confidence_level=confidence_level,
-            complexity_assessment=output.get("complexity_assessment", "Unknown complexity"),
-            estimated_effort=output.get("estimated_effort", "Unknown effort"),
-            required_skills=output.get("required_skills", []),
-            action_plan=output.get("action_plan", []),
-            risks=output.get("risks", []),
+            complexity_assessment=output.get("complexity_assessment") or output.get("complexity") or "Unknown complexity",
+            estimated_effort=output.get("estimated_effort") or output.get("effort") or "Unknown effort",
+            required_skills=output.get("required_skills") or output.get("skills") or [],
+            action_plan=output.get("action_plan") or output.get("plan") or [],
+            risks=output.get("risks") or [],
             session_id=session.session_id,
             session_url=session.url
         )
@@ -166,14 +200,19 @@ Format your response as JSON with these exact field names.
         completed_session = await self.wait_for_completion(session.session_id)
         
         output = completed_session.structured_output or {}
+        if isinstance(output, str):
+            try:
+                output = json.loads(output)
+            except Exception:
+                output = {}
         
         return TaskCompletionResult(
             issue_number=issue.number,
-            status=output.get("status", "unknown"),
-            completion_summary=output.get("completion_summary", "No summary available"),
-            files_modified=output.get("files_modified", []),
+            status=output.get("status") or "unknown",
+            completion_summary=output.get("completion_summary") or output.get("summary") or "No summary available",
+            files_modified=output.get("files_modified") or output.get("files") or [],
             pull_request_url=output.get("pull_request_url"),
             session_id=session.session_id,
             session_url=session.url,
-            success=output.get("success", False)
+            success=bool(output.get("success", False))
         )

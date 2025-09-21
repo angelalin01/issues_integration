@@ -218,6 +218,8 @@
                     Enable GitHub commenting (posts results as issue comments)
                 </label>
             </div>
+            <button class="btn" onclick="testDevinAuth()" style="margin-left: 10px; background-color: #238636;">Test Devin Auth</button>
+
             <button class="btn" onclick="configure()">Configure & Start Demo</button>
             <div id="config-status"></div>
         </div>
@@ -329,6 +331,51 @@
             } catch (error) {
                 showError('Configuration failed: ' + error.message);
             }
+        async function testDevinAuth() {
+            const stepsDiv = document.getElementById('demo-steps');
+            stepsDiv.innerHTML = `
+                <div class="step">
+                    <div class="step-title">Testing Devin Authentication</div>
+                    <p class="loading">Verifying Devin API key with the backend...</p>
+                </div>
+            `;
+            try {
+                const resp = await fetch('/api/test-devin-auth');
+                const result = await resp.json();
+                if (result.success) {
+                    stepsDiv.innerHTML = `
+                        <div class="step">
+                            <div class="step-title">Testing Devin Authentication</div>
+                            <p>
+                                <span class="status-indicator status-live">SUCCESS</span>
+                            </p>
+                            <p>Devin API authentication is valid.</p>
+                            ${result.session_url ? `<p>Session URL: <a href="${result.session_url}" target="_blank">${result.session_url}</a></p>` : ''}
+                        </div>
+                    `;
+                } else {
+                    stepsDiv.innerHTML = `
+                        <div class="step">
+                            <div class="step-title">Testing Devin Authentication</div>
+                            <p>
+                                <span class="status-indicator status-demo">FAILED</span>
+                            </p>
+                            <pre class="code-block">${(result.error || 'Unknown error')}</pre>
+                        </div>
+                    `;
+                    showError(result.error || 'Authentication failed');
+                }
+            } catch (e) {
+                stepsDiv.innerHTML = `
+                    <div class="step">
+                        <div class="step-title">Testing Devin Authentication</div>
+                        <pre class="code-block">${e.message}</pre>
+                    </div>
+                `;
+                showError(e.message);
+            }
+        }
+
         }
 
         async function listIssues() {

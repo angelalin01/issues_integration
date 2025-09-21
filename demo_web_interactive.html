@@ -190,6 +190,13 @@
             <h1><span class="emoji">🚀</span> GitHub Issues Integration with Devin - Interactive Demo</h1>
             <p>Configure your API credentials to use live data, or use demo mode with sample data</p>
         </div>
+        
+        <!-- Error Message Popup -->
+        <div id="errorPopup" style="display: none; background-color: #f8d7da; color: #721c24; padding: 15px; margin: 10px 0; border: 1px solid #f5c6cb; border-radius: 5px; position: relative;">
+            <strong>⚠️ Authentication Error:</strong>
+            <span id="errorMessage"></span>
+            <button onclick="closeErrorPopup()" style="position: absolute; right: 10px; top: 10px; background: none; border: none; font-size: 18px; cursor: pointer; color: #721c24;">×</button>
+        </div>
 
         <div id="config-section" class="config-section">
             <h3>Configuration</h3>
@@ -580,6 +587,22 @@
             errorDiv.className = 'error';
             errorDiv.textContent = message;
             document.getElementById('demo-steps').appendChild(errorDiv);
+            
+            // Show error popup for authentication failures
+            if (message.includes('401') || message.includes('Bad credentials') || message.includes('GitHub token')) {
+                showErrorPopup('GitHub authentication failed. Please check your GitHub token and ensure it has the necessary permissions to access the repository.');
+            } else if (message.includes('Devin API key')) {
+                showErrorPopup('Devin API key is required for scoping and completing issues. Please configure a valid Devin API key to use these features.');
+            }
+        }
+        
+        function showErrorPopup(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorPopup').style.display = 'block';
+        }
+        
+        function closeErrorPopup() {
+            document.getElementById('errorPopup').style.display = 'none';
         }
         
         async function clearCache() {

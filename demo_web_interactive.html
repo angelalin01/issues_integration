@@ -218,8 +218,16 @@
         <div id="demo-content" style="display: none;">
             <div class="demo-controls">
                 <button class="btn" id="list-btn" onclick="listIssues()">List Issues</button>
-                <button class="btn" id="scope-btn" onclick="scopeIssue()" disabled>Scope Issue #123</button>
-                <button class="btn" id="complete-btn" onclick="completeIssue()" disabled>Complete Issue #123</button>
+                
+                <div class="form-group" id="issue-selector" style="display: none; margin: 10px 0;">
+                    <label for="selected-issue">Select Issue to Work With:</label>
+                    <select id="selected-issue" onchange="updateSelectedIssue()">
+                        <option value="">-- Select an Issue --</option>
+                    </select>
+                </div>
+                
+                <button class="btn" id="scope-btn" onclick="scopeIssue()" disabled>Scope Issue</button>
+                <button class="btn" id="complete-btn" onclick="completeIssue()" disabled>Complete Issue</button>
                 <button class="btn" onclick="resetDemo()">Reset</button>
             </div>
             
@@ -238,6 +246,26 @@
             demo_mode: true,
             repo_name: null
         };
+        let selectedIssueNumber = null;
+
+        function updateSelectedIssue() {
+            const select = document.getElementById('selected-issue');
+            selectedIssueNumber = select.value ? parseInt(select.value) : null;
+            
+            const scopeBtn = document.getElementById('scope-btn');
+            const completeBtn = document.getElementById('complete-btn');
+            
+            if (selectedIssueNumber) {
+                scopeBtn.textContent = `Scope Issue #${selectedIssueNumber}`;
+                scopeBtn.disabled = false;
+                completeBtn.textContent = `Complete Issue #${selectedIssueNumber}`;
+            } else {
+                scopeBtn.textContent = 'Scope Issue';
+                scopeBtn.disabled = true;
+                completeBtn.textContent = 'Complete Issue';
+                completeBtn.disabled = true;
+            }
+        }
 
         async function configure() {
             const githubToken = document.getElementById('github-token').value.trim();
@@ -348,7 +376,15 @@
                         </div>
                     `;
 
-                    document.getElementById('scope-btn').disabled = false;
+                    // Populate issue selector dropdown
+                    const issueSelect = document.getElementById('selected-issue');
+                    issueSelect.innerHTML = '<option value="">-- Select an Issue --</option>';
+                    result.issues.forEach(issue => {
+                        issueSelect.innerHTML += `<option value="${issue.number}">#${issue.number} - ${issue.title}</option>`;
+                    });
+                    
+                    // Show issue selector
+                    document.getElementById('issue-selector').style.display = 'block';
                 } else {
                     showError('Failed to fetch issues: ' + result.error);
                 }
@@ -358,16 +394,21 @@
         }
 
         async function scopeIssue() {
+            if (!selectedIssueNumber) {
+                showError('Please select an issue first');
+                return;
+            }
+            
             const stepsDiv = document.getElementById('demo-steps');
             stepsDiv.innerHTML += `
                 <div class="step">
-                    <div class="step-title">Step 2: Scoping Issue #123</div>
+                    <div class="step-title">Step 2: Scoping Issue #${selectedIssueNumber}</div>
                     <p class="loading">Analyzing issue with Devin AI...</p>
                 </div>
             `;
 
             try {
-                const response = await fetch('/api/scope/123');
+                const response = await fetch(`/api/scope/${selectedIssueNumber}`);
                 const result = await response.json();
 
                 if (result.success) {
@@ -385,7 +426,7 @@
                     }
                     
                     lastStep.innerHTML = `
-                        <div class="step-title">Step 2: Scoping Issue #123${statusBadges}</div>
+                        <div class="step-title">Step 2: Scoping Issue #${selectedIssueNumber}${statusBadges}</div>
                         <p>
                             <span class="status-indicator ${result.demo_mode ? 'status-demo' : 'status-live'}">
                                 ${result.demo_mode ? 'DEMO DATA' : 'LIVE DEVIN API'}
@@ -394,7 +435,7 @@
                         </p>
                         
                         <div class="panel high-confidence">
-                            <h3>Issue #123 Scope Analysis</h3>
+                            <h3>Issue #${selectedIssueNumber} Scope Analysis</h3>
                             
                             <p><strong>Confidence Score:</strong> <span class="confidence-high">${scope.confidence_score.toFixed(2)} (${scope.confidence_level})</span></p>
                             <p><strong>Complexity:</strong> ${scope.complexity_assessment}</p>
@@ -433,16 +474,21 @@
         }
 
         async function completeIssue() {
+            if (!selectedIssueNumber) {
+                showError('Please select an issue first');
+                return;
+            }
+            
             const stepsDiv = document.getElementById('demo-steps');
             stepsDiv.innerHTML += `
                 <div class="step">
-                    <div class="step-title">Step 3: Completing Issue #123</div>
+                    <div class="step-title">Step 3: Completing Issue #${selectedIssueNumber}</div>
                     <p class="loading">Triggering Devin session to complete the issue...</p>
                 </div>
             `;
 
             try {
-                const response = await fetch('/api/complete/123');
+                const response = await fetch(`/api/complete/${selectedIssueNumber}`);
                 const result = await response.json();
 
                 if (result.success) {
@@ -460,7 +506,7 @@
                     }
                     
                     lastStep.innerHTML = `
-                        <div class="step-title">Step 3: Completing Issue #123${statusBadges}</div>
+                        <div class="step-title">Step 3: Completing Issue #${selectedIssueNumber}${statusBadges}</div>
                         <p>
                             <span class="status-indicator ${result.demo_mode ? 'status-demo' : 'status-live'}">
                                 ${result.demo_mode ? 'DEMO DATA' : 'LIVE DEVIN API'}
@@ -469,7 +515,7 @@
                         </p>
                         
                         <div class="panel success">
-                            <h3>Issue #123 Completion Result</h3>
+                            <h3>Issue #${selectedIssueNumber} Completion Result</h3>
                             
                             <p><strong>Status:</strong> <span class="status-success">${completion.status}</span></p>
                             <p><strong>Success:</strong> <span class="status-success">${completion.success}</span></p>
@@ -498,7 +544,7 @@
                             <p>The GitHub Issues Integration successfully:</p>
                             <ul class="list">
                                 <li>Listed issues from ${currentConfig.repo_name}</li>
-                                <li>Analyzed issue #123 with ${result.demo_mode ? 'demo' : 'live'} data</li>
+                                <li>Analyzed issue #${selectedIssueNumber} with ${result.demo_mode ? 'demo' : 'live'} data</li>
                                 <li>Completed the issue ${result.demo_mode ? 'simulation' : 'using live Devin API'}</li>
                             </ul>
                             
@@ -520,8 +566,13 @@
 
         function resetDemo() {
             document.getElementById('demo-steps').innerHTML = '';
+            document.getElementById('issue-selector').style.display = 'none';
+            document.getElementById('selected-issue').innerHTML = '<option value="">-- Select an Issue --</option>';
+            selectedIssueNumber = null;
             document.getElementById('scope-btn').disabled = true;
             document.getElementById('complete-btn').disabled = true;
+            document.getElementById('scope-btn').textContent = 'Scope Issue';
+            document.getElementById('complete-btn').textContent = 'Complete Issue';
         }
 
         function showError(message) {

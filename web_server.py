@@ -346,8 +346,11 @@ def scope_issue(issue_number):
         github_client = get_github_client()
         devin_client = get_devin_client()
         
-        if not github_client or not devin_client:
-            return jsonify({'success': False, 'error': 'API clients not available'})
+        if not github_client:
+            return jsonify({'success': False, 'error': 'GitHub token not configured or invalid'})
+        
+        if not devin_client:
+            return jsonify({'success': False, 'error': 'Devin API key not available - scoping requires a valid Devin API key'})
         
         issue = github_client.get_issue(runtime_config['repo_name'], issue_number)
         
@@ -417,8 +420,11 @@ def complete_issue(issue_number):
         github_client = get_github_client()
         devin_client = get_devin_client()
         
-        if not github_client or not devin_client:
-            return jsonify({'success': False, 'error': 'API clients not available'})
+        if not github_client:
+            return jsonify({'success': False, 'error': 'GitHub token not configured or invalid'})
+        
+        if not devin_client:
+            return jsonify({'success': False, 'error': 'Devin API key not available - task completion requires a valid Devin API key'})
         
         issue = github_client.get_issue(runtime_config['repo_name'], issue_number)
         

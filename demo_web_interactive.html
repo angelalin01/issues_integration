@@ -516,6 +516,9 @@
         async function pollScopeStatus(issueNumber, sessionId) {
             const progressDiv = document.getElementById(`progress-${issueNumber}`);
             const stepDiv = document.getElementById(`scope-step-${issueNumber}`);
+            if (!progressDiv || !stepDiv) {
+                return;
+            }
             
             sessionStartTime = Date.now();
             pollingCount = 0;
@@ -580,6 +583,9 @@
         async function pollCompletionStatus(issueNumber, sessionId) {
             const progressDiv = document.getElementById(`complete-progress-${issueNumber}`);
             const stepDiv = document.getElementById(`complete-step-${issueNumber}`);
+            if (!progressDiv || !stepDiv) {
+                return;
+            }
             
             sessionStartTime = Date.now();
             pollingCount = 0;

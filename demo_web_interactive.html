@@ -455,76 +455,127 @@
             
             const stepsDiv = document.getElementById('demo-steps');
             stepsDiv.innerHTML += `
-                <div class="step">
+                <div class="step" id="scope-step-${selectedIssueNumber}">
                     <div class="step-title">Step 2: Scoping Issue #${selectedIssueNumber}</div>
-                    <p class="loading">Analyzing issue with Devin AI...</p>
+                    <p class="loading">Starting analysis with Devin AI...</p>
+                    <div id="progress-${selectedIssueNumber}"></div>
                 </div>
             `;
 
             try {
+                // Start the scoping process
                 const response = await fetch(`/api/scope/${selectedIssueNumber}`);
                 const result = await response.json();
 
-                if (result.success) {
-                    const scope = result.result;
-                    const lastStep = stepsDiv.lastElementChild;
-                    
-                    let statusBadges = '';
-                    if (result.cached) statusBadges += '<span style="background: #f85149; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">CACHED</span>';
-                    if (scope.comment_posted) {
-                        if (scope.comment_posted.success) {
-                            statusBadges += '<span style="background: #238636; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">COMMENTED</span>';
-                        } else {
-                            statusBadges += '<span style="background: #da3633; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">COMMENT FAILED</span>';
-                        }
-                    }
-                    
-                    lastStep.innerHTML = `
-                        <div class="step-title">Step 2: Scoping Issue #${selectedIssueNumber}${statusBadges}</div>
-                        <p>
-                            <span class="status-indicator ${result.demo_mode ? 'status-demo' : 'status-live'}">
-                                ${result.demo_mode ? 'DEMO DATA' : 'LIVE DEVIN API'}
-                            </span>
-                            ${result.cached ? '<span class="status-indicator" style="background: #f85149; margin-left: 8px;">FROM CACHE</span>' : ''}
-                        </p>
-                        
-                        <div class="panel high-confidence">
-                            <h3>Issue #${selectedIssueNumber} Scope Analysis</h3>
-                            
-                            <p><strong>Confidence Score:</strong> <span class="confidence-high">${scope.confidence_score.toFixed(2)} (${scope.confidence_level})</span></p>
-                            <p><strong>Complexity:</strong> ${scope.complexity_assessment}</p>
-                            <p><strong>Estimated Effort:</strong> ${scope.estimated_effort}</p>
-                            
-                            <h4>Required Skills:</h4>
-                            <ul class="list">
-                                ${scope.required_skills.map(skill => `<li>${skill}</li>`).join('')}
-                            </ul>
-                            
-                            <h4>Action Plan:</h4>
-                            <ol class="list">
-                                ${scope.action_plan.map(step => `<li>${step}</li>`).join('')}
-                            </ol>
-                            
-                            <h4>Risks:</h4>
-                            <ul class="list">
-                                ${scope.risks.map(risk => `<li>${risk}</li>`).join('')}
-                            </ul>
-                            
-                            <p><strong>Devin Session:</strong> <a href="${scope.session_url}" class="url">${scope.session_url}</a></p>
-                            ${scope.comment_posted && scope.comment_posted.success ? 
-                                `<p><strong>GitHub Comment:</strong> <a href="${scope.comment_posted.comment_url}" target="_blank" class="url">View Comment</a></p>` : ''}
-                        </div>
-                        
-                        <p><strong>✅ Issue scoped with ${(scope.confidence_score * 100).toFixed(0)}% confidence</strong></p>
-                    `;
+                if (!result.success) {
+                    showError('Failed to start scoping: ' + result.error);
+                    return;
+                }
 
-                    document.getElementById('complete-btn').disabled = false;
+                if (result.demo_mode) {
+                    // Handle demo mode (existing logic)
+                    const scope = result.result;
+                    displayScopeResult(selectedIssueNumber, scope, result);
                 } else {
-                    showError('Failed to scope issue: ' + result.error);
+                    // Start polling for live mode
+                    const sessionId = result.session_id;
+                    pollScopeStatus(selectedIssueNumber, sessionId);
                 }
             } catch (error) {
                 showError('Failed to scope issue: ' + error.message);
             }
+        }
+
+        async function pollScopeStatus(issueNumber, sessionId) {
+            const progressDiv = document.getElementById(`progress-${issueNumber}`);
+            const stepDiv = document.getElementById(`scope-step-${issueNumber}`);
+            
+            const poll = async () => {
+                try {
+                    const response = await fetch(`/api/scope/${issueNumber}/status/${sessionId}`);
+                    const result = await response.json();
+
+                    if (!result.success) {
+                        showError('Failed to get status: ' + result.error);
+                        return;
+                    }
+
+                    // Update progress message
+                    if (result.progress_message) {
+                        progressDiv.innerHTML = `<p class="loading">${result.progress_message}</p>`;
+                    }
+
+                    if (result.status === 'completed' && result.result) {
+                        // Display final result
+                        displayScopeResult(issueNumber, result.result, {demo_mode: false, cached: false});
+                    } else if (result.status === 'failed' || result.status === 'stopped') {
+                        showError(`Scoping failed with status: ${result.status}`);
+                    } else {
+                        // Continue polling
+                        setTimeout(poll, 3000); // Poll every 3 seconds
+                    }
+                } catch (error) {
+                    showError('Polling error: ' + error.message);
+                }
+            };
+
+            // Start polling
+            poll();
+        }
+
+        function displayScopeResult(issueNumber, scope, result) {
+            const stepDiv = document.getElementById(`scope-step-${issueNumber}`);
+            
+            let statusBadges = '';
+            if (result.cached) statusBadges += '<span style="background: #f85149; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">CACHED</span>';
+            if (scope.comment_posted) {
+                if (scope.comment_posted.success) {
+                    statusBadges += '<span style="background: #238636; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">COMMENTED</span>';
+                } else {
+                    statusBadges += '<span style="background: #da3633; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">COMMENT FAILED</span>';
+                }
+            }
+            
+            stepDiv.innerHTML = `
+                <div class="step-title">Step 2: Scoping Issue #${issueNumber}${statusBadges}</div>
+                <p>
+                    <span class="status-indicator ${result.demo_mode ? 'status-demo' : 'status-live'}">
+                        ${result.demo_mode ? 'DEMO DATA' : 'LIVE DEVIN API'}
+                    </span>
+                    ${result.cached ? '<span class="status-indicator" style="background: #f85149; margin-left: 8px;">FROM CACHE</span>' : ''}
+                </p>
+                
+                <div class="panel high-confidence">
+                    <h3>Issue #${issueNumber} Scope Analysis</h3>
+                    
+                    <p><strong>Confidence Score:</strong> <span class="confidence-high">${scope.confidence_score.toFixed(2)} (${scope.confidence_level})</span></p>
+                    <p><strong>Complexity:</strong> ${scope.complexity_assessment}</p>
+                    <p><strong>Estimated Effort:</strong> ${scope.estimated_effort}</p>
+                    
+                    <h4>Required Skills:</h4>
+                    <ul class="list">
+                        ${scope.required_skills.map(skill => `<li>${skill}</li>`).join('')}
+                    </ul>
+                    
+                    <h4>Action Plan:</h4>
+                    <ol class="list">
+                        ${scope.action_plan.map(step => `<li>${step}</li>`).join('')}
+                    </ol>
+                    
+                    <h4>Risks:</h4>
+                    <ul class="list">
+                        ${scope.risks.map(risk => `<li>${risk}</li>`).join('')}
+                    </ul>
+                    
+                    <p><strong>Devin Session:</strong> <a href="${scope.session_url}" class="url">${scope.session_url}</a></p>
+                    ${scope.comment_posted && scope.comment_posted.success ? 
+                        `<p><strong>GitHub Comment:</strong> <a href="${scope.comment_posted.comment_url}" target="_blank" class="url">View Comment</a></p>` : ''}
+                </div>
+                
+                <p><strong>✅ Issue scoped with ${(scope.confidence_score * 100).toFixed(0)}% confidence</strong></p>
+            `;
+
+            document.getElementById('complete-btn').disabled = false;
         }
 
         async function completeIssue() {

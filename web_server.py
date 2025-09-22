@@ -385,27 +385,122 @@ def scope_issue(issue_number):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            scope_result = loop.run_until_complete(devin_client.scope_issue(issue))
-            result_dict = scope_result.dict()
+            prompt = f"""Please analyze this GitHub issue and provide a structured assessment:
+
+Repository: {issue.repository}
+Issue #{issue.number}: {issue.title}
+
+Description:
+{issue.body}
+
+Labels: {', '.join(issue.labels)}
+State: {issue.state}
+URL: {issue.url}
+
+Please provide a structured analysis with:
+1. confidence_score (0.0 to 1.0) - how confident you are this can be completed successfully
+2. confidence_level (low/medium/high) 
+3. complexity_assessment - brief description of complexity
+4. estimated_effort - time estimate (e.g., "2-4 hours", "1-2 days")
+5. required_skills - list of technical skills needed
+6. action_plan - step-by-step plan to complete the issue
+7. risks - potential risks or blockers
+
+Format your response as JSON with these exact field names."""
             
-            save_cached_result(issue_number, 'scope', result_dict)
+            session = loop.run_until_complete(devin_client.create_session(prompt))
             
-            if runtime_config['enable_commenting']:
-                comment_body = format_scope_comment(result_dict, issue_number)
-                comment_result = github_client.add_issue_comment(
-                    runtime_config['repo_name'], issue_number, comment_body
-                )
-                result_dict['comment_posted'] = comment_result
+            import threading
+            thread = threading.Thread(
+                target=lambda: asyncio.run(complete_scope_session(issue_number, session.session_id, issue))
+            )
+            thread.daemon = True
+            thread.start()
             
             return jsonify({
                 'success': True,
                 'demo_mode': False,
-                'cached': False,
-                'result': result_dict
+                'session_id': session.session_id,
+                'session_url': session.url,
+                'status': 'started'
             })
         finally:
             loop.close()
         
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/scope/<int:issue_number>/status/<session_id>')
+def get_scope_status(issue_number, session_id):
+    """Get the status of a scoping session"""
+    try:
+        if runtime_config['demo_mode']:
+            import time
+            import random
+            
+            stages = [
+                {"status": "running", "progress": "Analyzing issue description..."},
+                {"status": "running", "progress": "Evaluating complexity and requirements..."},
+                {"status": "running", "progress": "Generating action plan..."},
+                {"status": "completed", "progress": "Analysis complete"}
+            ]
+            
+            stage_index = min(len(stages) - 1, abs(hash(session_id)) % len(stages))
+            current_stage = stages[stage_index]
+            
+            if current_stage["status"] == "completed":
+                cached_result = load_cached_result(issue_number, 'scope')
+                if cached_result:
+                    return jsonify({
+                        'success': True,
+                        'status': 'completed',
+                        'result': cached_result
+                    })
+            
+            return jsonify({
+                'success': True,
+                'status': current_stage["status"],
+                'progress_message': current_stage["progress"]
+            })
+        
+        devin_client = get_devin_client()
+        if not devin_client:
+            return jsonify({'success': False, 'error': 'Devin client not available'})
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            session = loop.run_until_complete(devin_client.get_session_status(session_id))
+            
+            if session.status in ["completed", "stopped", "blocked"]:
+                cached_result = load_cached_result(issue_number, 'scope')
+                if cached_result:
+                    return jsonify({
+                        'success': True,
+                        'status': session.status,
+                        'result': cached_result
+                    })
+                
+                output = session.structured_output or {}
+                return jsonify({
+                    'success': True,
+                    'status': session.status,
+                    'result': output
+                })
+            else:
+                progress_message = "Processing with Devin AI..."
+                if session.structured_output:
+                    if isinstance(session.structured_output, dict):
+                        progress_message = session.structured_output.get('progress', progress_message)
+                
+                return jsonify({
+                    'success': True,
+                    'status': session.status,
+                    'progress_message': progress_message
+                })
+        finally:
+            loop.close()
+            
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
@@ -482,6 +577,65 @@ def complete_issue(issue_number):
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+async def complete_scope_session(issue_number, session_id, issue):
+    """Background task to complete scoping session and cache result"""
+    try:
+        devin_client = get_devin_client()
+        if not devin_client:
+            return
+        
+        completed_session = await devin_client.wait_for_completion(session_id)
+        
+        output = completed_session.structured_output or {}
+        if isinstance(output, str):
+            try:
+                output = json.loads(output)
+            except Exception:
+                output = {}
+        
+        cs_raw = output.get("confidence_score") or output.get("confidence") or 0.5
+        try:
+            confidence_score = float(cs_raw)
+        except Exception:
+            confidence_score = 0.5
+        
+        from models import ConfidenceLevel, IssueScopeResult
+        if confidence_score >= 0.8:
+            confidence_level = ConfidenceLevel.HIGH
+        elif confidence_score >= 0.5:
+            confidence_level = ConfidenceLevel.MEDIUM
+        else:
+            confidence_level = ConfidenceLevel.LOW
+        
+        scope_result = IssueScopeResult(
+            issue_number=issue.number,
+            confidence_score=confidence_score,
+            confidence_level=confidence_level,
+            complexity_assessment=output.get("complexity_assessment") or output.get("complexity") or "Unknown complexity",
+            estimated_effort=output.get("estimated_effort") or output.get("effort") or "Unknown effort",
+            required_skills=output.get("required_skills") or output.get("skills") or [],
+            action_plan=output.get("action_plan") or output.get("plan") or [],
+            risks=output.get("risks") or [],
+            session_id=session_id,
+            session_url=completed_session.url
+        )
+        
+        result_dict = scope_result.dict()
+        save_cached_result(issue_number, 'scope', result_dict)
+        
+        if runtime_config['enable_commenting']:
+            github_client = get_github_client()
+            if github_client:
+                comment_body = format_scope_comment(result_dict, issue_number)
+                comment_result = github_client.add_issue_comment(
+                    runtime_config['repo_name'], issue_number, comment_body
+                )
+                result_dict['comment_posted'] = comment_result
+                save_cached_result(issue_number, 'scope', result_dict)
+                
+    except Exception as e:
+        print(f"Error completing scope session {session_id}: {e}")
 
 @app.route('/api/cleanup/comments', methods=['POST'])
 def cleanup_comments():

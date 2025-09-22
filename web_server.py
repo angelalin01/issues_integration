@@ -341,21 +341,46 @@ def scope_issue(issue_number):
     try:
         cached_result = load_cached_result(issue_number, 'scope')
         if cached_result:
-            if runtime_config['enable_commenting'] and not runtime_config['demo_mode']:
-                github_client = get_github_client()
-                if github_client:
-                    comment_body = format_scope_comment(cached_result, issue_number)
-                    comment_result = github_client.add_issue_comment(
-                        runtime_config['repo_name'], issue_number, comment_body
-                    )
-                    cached_result['comment_posted'] = comment_result
-            
-            return jsonify({
-                'success': True,
-                'demo_mode': runtime_config['demo_mode'],
-                'cached': True,
-                'result': cached_result
-            })
+            # PROTECTION: Never return demo data in live mode
+            if not runtime_config.get('demo_mode', False):
+                # Verify this isn't demo data by checking for demo indicators
+                if (isinstance(cached_result, dict) and 
+                   (cached_result.get('session_id', '').startswith('demo-') or
+                    cached_result.get('complexity_assessment') == 'Medium complexity - requires understanding of existing codebase')):
+                    # This is demo data, don't return it in live mode
+                    pass
+                else:
+                    if runtime_config['enable_commenting']:
+                        github_client = get_github_client()
+                        if github_client:
+                            comment_body = format_scope_comment(cached_result, issue_number)
+                            comment_result = github_client.add_issue_comment(
+                                runtime_config['repo_name'], issue_number, comment_body
+                            )
+                            cached_result['comment_posted'] = comment_result
+                    
+                    return jsonify({
+                        'success': True,
+                        'demo_mode': runtime_config['demo_mode'],
+                        'cached': True,
+                        'result': cached_result
+                    })
+            elif runtime_config.get('demo_mode', False):
+                if runtime_config['enable_commenting']:
+                    github_client = get_github_client()
+                    if github_client:
+                        comment_body = format_scope_comment(cached_result, issue_number)
+                        comment_result = github_client.add_issue_comment(
+                            runtime_config['repo_name'], issue_number, comment_body
+                        )
+                        cached_result['comment_posted'] = comment_result
+                
+                return jsonify({
+                    'success': True,
+                    'demo_mode': runtime_config['demo_mode'],
+                    'cached': True,
+                    'result': cached_result
+                })
         
         if runtime_config['demo_mode']:
             # Demo mode - use canned responses, no commenting
@@ -477,49 +502,29 @@ def get_scope_status(issue_number, session_id):
                 cached_result = load_cached_result(issue_number, 'scope')
                 print(f"DEBUG: Looking for cached result for issue {issue_number}, found: {cached_result is not None}")
                 if cached_result:
-                    return jsonify({
-                        'success': True,
-                        'status': session.status,
-                        'result': cached_result
-                    })
+                    # PROTECTION: Never return demo data in live mode
+                    if not runtime_config.get('demo_mode', False):
+                        # Verify this isn't demo data by checking for demo indicators
+                        if not (isinstance(cached_result, dict) and 
+                               (cached_result.get('session_id', '').startswith('demo-') or
+                                cached_result.get('complexity_assessment') == 'Medium complexity - requires understanding of existing codebase')):
+                            return jsonify({
+                                'success': True,
+                                'status': session.status,
+                                'result': cached_result
+                            })
+                    elif runtime_config.get('demo_mode', False):
+                        return jsonify({
+                            'success': True,
+                            'status': session.status,
+                            'result': cached_result
+                        })
                 
-                output = session.structured_output or {}
-                if isinstance(output, str):
-                    try:
-                        output = json.loads(output)
-                    except Exception:
-                        output = {}
-                
-                cs_raw = output.get("confidence_score") or output.get("confidence") or 0.5
-                try:
-                    confidence_score = float(cs_raw)
-                except Exception:
-                    confidence_score = 0.5
-                
-                from models import ConfidenceLevel
-                if confidence_score >= 0.8:
-                    confidence_level = ConfidenceLevel.HIGH
-                elif confidence_score >= 0.5:
-                    confidence_level = ConfidenceLevel.MEDIUM
-                else:
-                    confidence_level = ConfidenceLevel.LOW
-                
-                structured_result = {
-                    'confidence_score': confidence_score,
-                    'confidence_level': confidence_level.value,
-                    'complexity_assessment': output.get("complexity_assessment") or output.get("complexity") or "Unknown complexity",
-                    'estimated_effort': output.get("estimated_effort") or output.get("effort") or "Unknown effort",
-                    'required_skills': output.get("required_skills") or output.get("skills") or [],
-                    'action_plan': output.get("action_plan") or output.get("plan") or [],
-                    'risks': output.get("risks") or [],
-                    'session_id': session_id,
-                    'session_url': session.url or f"https://app.devin.ai/sessions/{session_id.replace('devin-', '')}"
-                }
-                
+                # Return session structured output directly
                 return jsonify({
                     'success': True,
                     'status': session.status,
-                    'result': structured_result
+                    'result': session.structured_output
                 })
             else:
                 progress_message = "Processing with Devin AI..."

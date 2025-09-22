@@ -569,8 +569,22 @@
                     if (result.progress_message) {
                         const sessionUrlHtml = progressDiv.innerHTML.includes('Live Devin Session:') ? 
                             progressDiv.innerHTML.split('<p><strong>Live Devin Session:</strong>')[1] : '';
+                        
+                        let actionPlanHtml = '';
+                        if (result.action_plan_preview && result.action_plan_preview.length > 0) {
+                            actionPlanHtml = `
+                                <div style="margin-top: 10px;">
+                                    <strong>Current Action Plan:</strong>
+                                    <ol style="margin: 5px 0; padding-left: 20px;">
+                                        ${result.action_plan_preview.map((step, i) => `<li>${step}</li>`).join('')}
+                                        ${result.action_plan_preview.length >= 3 ? '<li><em>...and more steps</em></li>' : ''}
+                                    </ol>
+                                </div>`;
+                        }
+                        
                         progressDiv.innerHTML = `
                             <p class="loading">${result.progress_message}</p>
+                            ${actionPlanHtml}
                             ${sessionUrlHtml ? `<p><strong>Live Devin Session:</strong> ${sessionUrlHtml}` : ''}
                         `;
                     }
@@ -624,17 +638,17 @@
                     
                     <h4>Required Skills:</h4>
                     <ul class="list">
-                        ${scope.required_skills.map(skill => `<li>${skill}</li>`).join('')}
+                        ${(scope.required_skills || []).map(skill => `<li>${skill}</li>`).join('')}
                     </ul>
                     
                     <h4>Action Plan:</h4>
                     <ol class="list">
-                        ${scope.action_plan.map(step => `<li>${step}</li>`).join('')}
+                        ${(scope.action_plan || []).map(step => `<li>${step}</li>`).join('')}
                     </ol>
                     
                     <h4>Risks:</h4>
                     <ul class="list">
-                        ${scope.risks.map(risk => `<li>${risk}</li>`).join('')}
+                        ${(scope.risks || []).map(risk => `<li>${risk}</li>`).join('')}
                     </ul>
                     
                     <p><strong>Devin Session:</strong> <a href="${scope.session_url}" class="url">${scope.session_url}</a></p>
@@ -683,22 +697,22 @@
                     
                     <h4>Required Skills:</h4>
                     <ul class="list">
-                        ${completion.required_skills.map(skill => `<li>${skill}</li>`).join('')}
+                        ${(completion.required_skills || []).map(skill => `<li>${skill}</li>`).join('')}
                     </ul>
                     
                     <h4>Implementation Steps:</h4>
                     <ol class="list">
-                        ${completion.action_plan.map(step => `<li>${step}</li>`).join('')}
+                        ${(completion.action_plan || []).map(step => `<li>${step}</li>`).join('')}
                     </ol>
                     
                     <h4>Files Modified:</h4>
                     <ul class="list">
-                        ${completion.files_modified.map(file => `<li>${file}</li>`).join('')}
+                        ${(completion.files_modified || []).map(file => `<li>${file}</li>`).join('')}
                     </ul>
                     
                     <h4>Risks:</h4>
                     <ul class="list">
-                        ${completion.risks.map(risk => `<li>${risk}</li>`).join('')}
+                        ${(completion.risks || []).map(risk => `<li>${risk}</li>`).join('')}
                     </ul>
                     
                     <p><strong>Pull Request:</strong> <a href="${completion.pull_request_url || '#'}" class="url">${completion.pull_request_url || 'None created'}</a></p>
@@ -792,7 +806,7 @@
                             
                             <h4>Files Modified:</h4>
                             <ul class="list">
-                                ${completion.files_modified.map(file => `<li>${file}</li>`).join('')}
+                                ${(completion.files_modified || []).map(file => `<li>${file}</li>`).join('')}
                             </ul>
                             
                             <p><strong>Pull Request:</strong> <a href="${completion.pull_request_url || '#'}" class="url">${completion.pull_request_url || 'None created'}</a></p>

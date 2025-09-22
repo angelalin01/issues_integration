@@ -25,7 +25,7 @@ runtime_config = {
     'enable_commenting': False
 }
 
-def set_runtime_config(github_token: str = None, devin_api_key: str = None, repo_name: str = None, enable_commenting: bool = False):
+def set_runtime_config(github_token=None, devin_api_key=None, repo_name=None, enable_commenting: bool = False):
     """Set runtime configuration for API calls"""
     global runtime_config
     runtime_config['github_token'] = github_token
@@ -528,14 +528,17 @@ def get_scope_status(issue_number, session_id):
                 })
             else:
                 progress_message = "Processing with Devin AI..."
+                action_plan_preview = []
                 if session.structured_output:
                     if isinstance(session.structured_output, dict):
                         progress_message = session.structured_output.get('progress', progress_message)
+                        action_plan_preview = session.structured_output.get('action_plan', [])[:3]
                 
                 return jsonify({
                     'success': True,
                     'status': session.status,
-                    'progress_message': progress_message
+                    'progress_message': progress_message,
+                    'action_plan_preview': action_plan_preview
                 })
         finally:
             loop.close()
@@ -796,11 +799,11 @@ def get_completion_status(issue_number, session_id):
             import random
             
             stages = [
-                {"status": "running", "progress": "Analyzing codebase..."},
-                {"status": "running", "progress": "Implementing changes..."},
-                {"status": "running", "progress": "Creating tests..."},
-                {"status": "running", "progress": "Creating pull request..."},
-                {"status": "completed", "progress": "Implementation complete"}
+                {"status": "running", "progress": "Analyzing codebase...", "action_plan": ["Analyze repository structure", "Identify relevant files", "Understand codebase patterns"]},
+                {"status": "running", "progress": "Implementing changes...", "action_plan": ["Create implementation plan", "Write code changes", "Update documentation"]},
+                {"status": "running", "progress": "Creating tests...", "action_plan": ["Design test cases", "Write unit tests", "Verify test coverage"]},
+                {"status": "running", "progress": "Creating pull request...", "action_plan": ["Commit changes", "Create PR description", "Submit pull request"]},
+                {"status": "completed", "progress": "Implementation complete", "action_plan": []}
             ]
             
             stage_index = min(len(stages) - 1, abs(hash(session_id)) % len(stages))
@@ -818,7 +821,8 @@ def get_completion_status(issue_number, session_id):
             return jsonify({
                 'success': True,
                 'status': current_stage["status"],
-                'progress_message': current_stage["progress"]
+                'progress_message': current_stage["progress"],
+                'action_plan_preview': current_stage["action_plan"]
             })
         
         devin_client = get_devin_client()
@@ -861,14 +865,17 @@ def get_completion_status(issue_number, session_id):
                 })
             else:
                 progress_message = "Processing with Devin AI..."
+                action_plan_preview = []
                 if session.structured_output:
                     if isinstance(session.structured_output, dict):
                         progress_message = session.structured_output.get('progress', progress_message)
+                        action_plan_preview = session.structured_output.get('action_plan', [])[:3]
                 
                 return jsonify({
                     'success': True,
                     'status': session.status,
-                    'progress_message': progress_message
+                    'progress_message': progress_message,
+                    'action_plan_preview': action_plan_preview
                 })
         finally:
             loop.close()

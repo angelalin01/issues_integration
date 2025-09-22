@@ -513,12 +513,14 @@ def get_scope_status(issue_number, session_id):
                             return jsonify({
                                 'success': True,
                                 'status': session.status,
+                                'session_url': cached_result.get('session_url') or getattr(session, 'url', None),
                                 'result': cached_result
                             })
                     elif runtime_config.get('demo_mode', False):
                         return jsonify({
                             'success': True,
                             'status': session.status,
+                            'session_url': cached_result.get('session_url'),
                             'result': cached_result
                         })
                 
@@ -526,6 +528,7 @@ def get_scope_status(issue_number, session_id):
                 return jsonify({
                     'success': True,
                     'status': session.status,
+                    'session_url': getattr(session, 'url', None),
                     'result': session.structured_output
                 })
             else:
@@ -534,11 +537,12 @@ def get_scope_status(issue_number, session_id):
                 if session.structured_output:
                     if isinstance(session.structured_output, dict):
                         progress_message = session.structured_output.get('progress', progress_message)
-                        action_plan_preview = session.structured_output.get('action_plan', [])[:3]
+                        action_plan_preview = (session.structured_output.get('action_plan') or session.structured_output.get('plan') or [])[:3]
                 
                 return jsonify({
                     'success': True,
                     'status': session.status,
+                    'session_url': getattr(session, 'url', None),
                     'progress_message': progress_message,
                     'action_plan_preview': action_plan_preview
                 })
@@ -851,12 +855,14 @@ def get_completion_status(issue_number, session_id):
                             return jsonify({
                                 'success': True,
                                 'status': session.status,
+                                'session_url': cached_result.get('session_url') or getattr(session, 'url', None),
                                 'result': cached_result
                             })
                     elif runtime_config.get('demo_mode', False):
                         return jsonify({
                             'success': True,
                             'status': session.status,
+                            'session_url': cached_result.get('session_url'),
                             'result': cached_result
                         })
                 
@@ -864,6 +870,7 @@ def get_completion_status(issue_number, session_id):
                 return jsonify({
                     'success': True,
                     'status': session.status,
+                    'session_url': getattr(session, 'url', None),
                     'result': session.structured_output
                 })
             else:
@@ -872,11 +879,12 @@ def get_completion_status(issue_number, session_id):
                 if session.structured_output:
                     if isinstance(session.structured_output, dict):
                         progress_message = session.structured_output.get('progress', progress_message)
-                        action_plan_preview = session.structured_output.get('action_plan', [])[:3]
+                        action_plan_preview = (session.structured_output.get('action_plan') or session.structured_output.get('plan') or [])[:3]
                 
                 return jsonify({
                     'success': True,
                     'status': session.status,
+                    'session_url': getattr(session, 'url', None),
                     'progress_message': progress_message,
                     'action_plan_preview': action_plan_preview
                 })

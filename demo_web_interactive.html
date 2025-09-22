@@ -477,8 +477,31 @@
                     const scope = result.result;
                     displayScopeResult(selectedIssueNumber, scope, result);
                 } else {
+                    // Handle both fresh sessions and cached results
+                    let sessionId, sessionUrl;
+                    
+                    if (result.cached && result.result) {
+                        // Cached result - extract from nested result object
+                        sessionId = result.result.session_id;
+                        sessionUrl = result.result.session_url;
+                        
+                        // If cached, display results immediately
+                        displayScopeResult(selectedIssueNumber, result.result, result);
+                        return;
+                    } else {
+                        // Fresh session - extract from top level
+                        sessionId = result.session_id;
+                        sessionUrl = result.session_url;
+                    }
+                    
+                    // Show session URL immediately for live mode
+                    const progressDiv = document.getElementById(`progress-${selectedIssueNumber}`);
+                    progressDiv.innerHTML = `
+                        <p class="loading">Starting analysis with Devin AI...</p>
+                        <p><strong>Live Devin Session:</strong> <a href="${sessionUrl}" target="_blank" class="url">${sessionUrl}</a></p>
+                    `;
+                    
                     // Start polling for live mode
-                    const sessionId = result.session_id;
                     pollScopeStatus(selectedIssueNumber, sessionId);
                 }
             } catch (error) {
@@ -500,12 +523,17 @@
                         return;
                     }
 
-                    // Update progress message
+                    // Update progress message while preserving session URL
                     if (result.progress_message) {
-                        progressDiv.innerHTML = `<p class="loading">${result.progress_message}</p>`;
+                        const sessionUrlHtml = progressDiv.innerHTML.includes('Live Devin Session:') ? 
+                            progressDiv.innerHTML.split('<p><strong>Live Devin Session:</strong>')[1] : '';
+                        progressDiv.innerHTML = `
+                            <p class="loading">${result.progress_message}</p>
+                            ${sessionUrlHtml ? `<p><strong>Live Devin Session:</strong> ${sessionUrlHtml}` : ''}
+                        `;
                     }
 
-                    if (result.status === 'completed' && result.result) {
+                    if ((result.status === 'completed' || result.status === 'blocked' || result.status === 'suspended') && result.result) {
                         // Display final result
                         displayScopeResult(issueNumber, result.result, {demo_mode: false, cached: false});
                     } else if (result.status === 'failed' || result.status === 'stopped') {
@@ -586,9 +614,10 @@
             
             const stepsDiv = document.getElementById('demo-steps');
             stepsDiv.innerHTML += `
-                <div class="step">
+                <div class="step" id="complete-step-${selectedIssueNumber}">
                     <div class="step-title">Step 3: Completing Issue #${selectedIssueNumber}</div>
-                    <p class="loading">Triggering Devin session to complete the issue...</p>
+                    <p class="loading">Starting work with Devin AI...</p>
+                    <div id="complete-progress-${selectedIssueNumber}"></div>
                 </div>
             `;
 
@@ -596,7 +625,14 @@
                 const response = await fetch(`/api/complete/${selectedIssueNumber}`);
                 const result = await response.json();
 
-                if (result.success) {
+                if (!result.success) {
+                    showError('Failed to start completion: ' + result.error);
+                    return;
+                }
+
+                if (result.demo_mode) {
+                    // Handle demo mode (existing logic)
+                    if (result.success) {
                     const completion = result.result;
                     const lastStep = stepsDiv.lastElementChild;
                     
@@ -661,8 +697,38 @@
                             </p>
                         </div>
                     `;
+                    } else {
+                        showError('Failed to complete issue: ' + result.error);
+                    }
                 } else {
-                    showError('Failed to complete issue: ' + result.error);
+                    // Handle both fresh sessions and cached results for completion
+                    let sessionId, sessionUrl;
+                    
+                    if (result.cached && result.result) {
+                        // Cached result - extract from nested result object
+                        sessionId = result.result.session_id;
+                        sessionUrl = result.result.session_url;
+                        
+                        // If cached, display results immediately
+                        // Note: Would need to implement displayCompletionResult function
+                        const progressDiv = document.getElementById(`complete-progress-${selectedIssueNumber}`);
+                        progressDiv.innerHTML = `<p class="loading">Completed (cached result)</p>`;
+                        return;
+                    } else {
+                        // Fresh session - extract from top level
+                        sessionId = result.session_id;
+                        sessionUrl = result.session_url;
+                    }
+                    
+                    // Show session URL immediately for live mode
+                    const progressDiv = document.getElementById(`complete-progress-${selectedIssueNumber}`);
+                    progressDiv.innerHTML = `
+                        <p class="loading">Starting work with Devin AI...</p>
+                        <p><strong>Live Devin Session:</strong> <a href="${sessionUrl}" target="_blank" class="url">${sessionUrl}</a></p>
+                    `;
+                    
+                    // Note: For completion, we would need to implement polling similar to scoping
+                    // For now, just show the session URL immediately
                 }
             } catch (error) {
                 showError('Failed to complete issue: ' + error.message);

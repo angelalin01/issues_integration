@@ -471,9 +471,11 @@ def get_scope_status(issue_number, session_id):
         asyncio.set_event_loop(loop)
         try:
             session = loop.run_until_complete(devin_client.get_session_status(session_id))
+            print(f"DEBUG: Status endpoint - session {session_id} has status: {session.status}")
             
-            if session.status in ["completed", "stopped", "blocked"]:
+            if session.status in ["completed", "stopped", "blocked", "suspended"]:
                 cached_result = load_cached_result(issue_number, 'scope')
+                print(f"DEBUG: Looking for cached result for issue {issue_number}, found: {cached_result is not None}")
                 if cached_result:
                     return jsonify({
                         'success': True,
@@ -581,11 +583,15 @@ def complete_issue(issue_number):
 async def complete_scope_session(issue_number, session_id, issue):
     """Background task to complete scoping session and cache result"""
     try:
+        print(f"DEBUG: Starting background task for issue {issue_number}, session {session_id}")
         devin_client = get_devin_client()
         if not devin_client:
+            print(f"DEBUG: No devin client available for session {session_id}")
             return
         
+        print(f"DEBUG: Waiting for completion of session {session_id}")
         completed_session = await devin_client.wait_for_completion(session_id)
+        print(f"DEBUG: Session {session_id} completed with status: {completed_session.status}")
         
         output = completed_session.structured_output or {}
         if isinstance(output, str):
@@ -618,11 +624,13 @@ async def complete_scope_session(issue_number, session_id, issue):
             action_plan=output.get("action_plan") or output.get("plan") or [],
             risks=output.get("risks") or [],
             session_id=session_id,
-            session_url=completed_session.url
+            session_url=completed_session.url or f"https://app.devin.ai/sessions/{session_id.replace('devin-', '')}"
         )
         
         result_dict = scope_result.dict()
+        print(f"DEBUG: Saving cached result for issue {issue_number}: {result_dict}")
         save_cached_result(issue_number, 'scope', result_dict)
+        print(f"DEBUG: Cached result saved successfully for issue {issue_number}")
         
         if runtime_config['enable_commenting']:
             github_client = get_github_client()
@@ -635,7 +643,9 @@ async def complete_scope_session(issue_number, session_id, issue):
                 save_cached_result(issue_number, 'scope', result_dict)
                 
     except Exception as e:
-        print(f"Error completing scope session {session_id}: {e}")
+        print(f"DEBUG: Error completing scope session {session_id}: {e}")
+        import traceback
+        print(f"DEBUG: Full traceback: {traceback.format_exc()}")
 
 @app.route('/api/cleanup/comments', methods=['POST'])
 def cleanup_comments():

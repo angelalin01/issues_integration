@@ -67,7 +67,7 @@ class DevinClient:
                 except Exception:
                     pass
                 obj = data if isinstance(data, dict) else {}
-                status_val = obj.get("status") or obj.get("status_enum") or "unknown"
+                status_val = obj.get("status_enum") or obj.get("status") or "unknown"
                 structured = obj.get("structured_output") or obj.get("output")
                 if isinstance(structured, str):
                     try:
@@ -90,7 +90,7 @@ class DevinClient:
         while total_wait < max_wait_time:
             session = await self.get_session_status(session_id)
             
-            if session.status in ["blocked", "stopped", "completed"]:
+            if session.status in ["blocked", "stopped", "completed", "suspended"]:
                 return session
             
             await asyncio.sleep(min(backoff, 30))

@@ -614,7 +614,27 @@ Description:
 Labels: {', '.join(issue.labels)}
 URL: {issue.url}
 
-Please provide a structured response with all the fields as specified in the DevinClient.complete_issue method.
+Please:
+1. Clone the repository if needed
+2. Analyze the codebase to understand the issue
+3. Implement the necessary changes
+4. Create tests if appropriate
+5. Create a pull request with your changes
+
+Provide a structured response with:
+- status: "completed" or "failed"
+- completion_summary: brief summary of what was done
+- files_modified: list of files that were changed
+- pull_request_url: URL of created PR (if any)
+- success: boolean indicating if task was completed successfully
+- confidence_score: (0.0 to 1.0) how confident you are in the implementation quality
+- confidence_level: (low/medium/high)
+- complexity_assessment: brief description of implementation complexity
+- implementation_quality: assessment of code quality and completeness
+- required_skills: list of technical skills that were needed
+- action_plan: step-by-step summary of what was implemented
+- risks: potential risks or issues with the implementation
+- test_coverage: description of tests added or testing performed
 
 Format your response as JSON with these exact field names."""
             

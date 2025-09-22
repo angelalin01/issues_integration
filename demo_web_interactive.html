@@ -243,6 +243,8 @@
             <div class="demo-controls" style="margin-top: 10px;">
                 <button class="btn" onclick="clearCache()" style="background-color: #f85149;">Clear Cache</button>
                 <button class="btn" onclick="cleanupComments()" style="background-color: #da3633; margin-left: 10px;">Cleanup Comments</button>
+                <button class="btn" onclick="checkSessionStatus()" style="background-color: #0969da; margin-left: 10px;">Check Session Status</button>
+                <button class="btn" onclick="showStoredSessions()" style="background-color: #6f42c1; margin-left: 10px;">View Stored Sessions</button>
                 <div id="management-status" style="margin-top: 10px;"></div>
             </div>
 
@@ -256,6 +258,8 @@
             repo_name: null
         };
         let selectedIssueNumber = null;
+        let sessionStartTime = null;
+        let pollingCount = 0;
 
         function updateSelectedIssue() {
             const select = document.getElementById('selected-issue');
@@ -513,8 +517,17 @@
             const progressDiv = document.getElementById(`progress-${issueNumber}`);
             const stepDiv = document.getElementById(`scope-step-${issueNumber}`);
             
+            sessionStartTime = Date.now();
+            pollingCount = 0;
+            
+            // Store session info in localStorage
+            storeSessionInfo(issueNumber, sessionId, 'scope');
+            
             const poll = async () => {
                 try {
+                    pollingCount++;
+                    const elapsedMinutes = Math.floor((Date.now() - sessionStartTime) / 60000);
+                    
                     const response = await fetch(`/api/scope/${issueNumber}/status/${sessionId}`);
                     const result = await response.json();
 
@@ -523,20 +536,33 @@
                         return;
                     }
 
-                    // Update progress message while preserving session URL
+                    // Update progress message with enhanced UI
                     if (result.progress_message) {
                         const sessionUrlHtml = progressDiv.innerHTML.includes('Live Devin Session:') ? 
                             progressDiv.innerHTML.split('<p><strong>Live Devin Session:</strong>')[1] : '';
+                        
+                        let timeIndicator = '';
+                        if (elapsedMinutes >= 10) {
+                            timeIndicator = `<div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 8px; margin: 5px 0; border-radius: 4px;">
+                                <strong>⏱️ Extended Session:</strong> Running for ${elapsedMinutes} minutes. 
+                                <a href="#" onclick="checkSessionStatus(${issueNumber}, '${sessionId}', 'scope')" style="color: #0969da;">Check status manually</a>
+                            </div>`;
+                        }
+                        
                         progressDiv.innerHTML = `
                             <p class="loading">${result.progress_message}</p>
+                            ${timeIndicator}
                             ${sessionUrlHtml ? `<p><strong>Live Devin Session:</strong> ${sessionUrlHtml}` : ''}
                         `;
                     }
 
                     if ((result.status === 'completed' || result.status === 'blocked' || result.status === 'suspended') && result.result) {
+                        // Clear stored session on completion
+                        clearStoredSession(issueNumber, 'scope');
                         // Display final result
                         displayScopeResult(issueNumber, result.result, {demo_mode: false, cached: false});
                     } else if (result.status === 'failed' || result.status === 'stopped') {
+                        clearStoredSession(issueNumber, 'scope');
                         showError(`Scoping failed with status: ${result.status}`);
                     } else {
                         // Continue polling
@@ -555,8 +581,17 @@
             const progressDiv = document.getElementById(`complete-progress-${issueNumber}`);
             const stepDiv = document.getElementById(`complete-step-${issueNumber}`);
             
+            sessionStartTime = Date.now();
+            pollingCount = 0;
+            
+            // Store session info in localStorage
+            storeSessionInfo(issueNumber, sessionId, 'completion');
+            
             const poll = async () => {
                 try {
+                    pollingCount++;
+                    const elapsedMinutes = Math.floor((Date.now() - sessionStartTime) / 60000);
+                    
                     const response = await fetch(`/api/complete/${issueNumber}/status/${sessionId}`);
                     const result = await response.json();
 
@@ -565,7 +600,7 @@
                         return;
                     }
 
-                    // Update progress message while preserving session URL
+                    // Update progress message with enhanced UI
                     if (result.progress_message) {
                         const sessionUrlHtml = progressDiv.innerHTML.includes('Live Devin Session:') ? 
                             progressDiv.innerHTML.split('<p><strong>Live Devin Session:</strong>')[1] : '';
@@ -582,17 +617,29 @@
                                 </div>`;
                         }
                         
+                        let timeIndicator = '';
+                        if (elapsedMinutes >= 15) {
+                            timeIndicator = `<div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 8px; margin: 5px 0; border-radius: 4px;">
+                                <strong>⏱️ Extended Session:</strong> Running for ${elapsedMinutes} minutes. Complex issues may take 30+ minutes.
+                                <a href="#" onclick="checkSessionStatus(${issueNumber}, '${sessionId}', 'completion')" style="color: #0969da;">Check status manually</a>
+                            </div>`;
+                        }
+                        
                         progressDiv.innerHTML = `
                             <p class="loading">${result.progress_message}</p>
                             ${actionPlanHtml}
+                            ${timeIndicator}
                             ${sessionUrlHtml ? `<p><strong>Live Devin Session:</strong> ${sessionUrlHtml}` : ''}
                         `;
                     }
 
                     if ((result.status === 'completed' || result.status === 'blocked' || result.status === 'suspended') && result.result) {
+                        // Clear stored session on completion
+                        clearStoredSession(issueNumber, 'completion');
                         // Display final result
                         displayCompletionResult(issueNumber, result.result, {demo_mode: false, cached: false});
                     } else if (result.status === 'failed' || result.status === 'stopped') {
+                        clearStoredSession(issueNumber, 'completion');
                         showError(`Completion failed with status: ${result.status}`);
                     } else {
                         // Continue polling
@@ -897,6 +944,92 @@
                 showErrorPopup('Devin API key is required for scoping and completing issues. Please configure a valid Devin API key to use these features.');
             }
         }
+
+        // Session persistence functions
+        function storeSessionInfo(issueNumber, sessionId, type) {
+            const sessionKey = `devin_session_${issueNumber}_${type}`;
+            const sessionData = {
+                sessionId: sessionId,
+                issueNumber: issueNumber,
+                type: type,
+                startTime: Date.now(),
+                repository: currentConfig.repo_name || 'unknown'
+            };
+            localStorage.setItem(sessionKey, JSON.stringify(sessionData));
+            
+            // Also store in a general sessions list
+            const allSessions = JSON.parse(localStorage.getItem('devin_all_sessions') || '[]');
+            allSessions.push(sessionData);
+            localStorage.setItem('devin_all_sessions', JSON.stringify(allSessions));
+        }
+
+        function clearStoredSession(issueNumber, type) {
+            const sessionKey = `devin_session_${issueNumber}_${type}`;
+            localStorage.removeItem(sessionKey);
+            
+            // Remove from general sessions list
+            const allSessions = JSON.parse(localStorage.getItem('devin_all_sessions') || '[]');
+            const filteredSessions = allSessions.filter(s => !(s.issueNumber === issueNumber && s.type === type));
+            localStorage.setItem('devin_all_sessions', JSON.stringify(filteredSessions));
+        }
+
+        function getStoredSession(issueNumber, type) {
+            const sessionKey = `devin_session_${issueNumber}_${type}`;
+            const sessionData = localStorage.getItem(sessionKey);
+            return sessionData ? JSON.parse(sessionData) : null;
+        }
+
+        async function checkSessionStatus(issueNumber = null, sessionId = null, type = null) {
+            if (!issueNumber || !sessionId || !type) {
+                // Show stored sessions if no specific session provided
+                showStoredSessions();
+                return;
+            }
+
+            try {
+                const endpoint = type === 'scope' ? `/api/scope/${issueNumber}/status/${sessionId}` : `/api/complete/${issueNumber}/status/${sessionId}`;
+                const response = await fetch(endpoint);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const elapsedMinutes = Math.floor((Date.now() - (getStoredSession(issueNumber, type)?.startTime || Date.now())) / 60000);
+                    
+                    let statusMessage = `Session Status for Issue #${issueNumber} (${type}):\n`;
+                    statusMessage += `Status: ${result.status}\n`;
+                    statusMessage += `Running for: ${elapsedMinutes} minutes\n`;
+                    if (result.progress_message) {
+                        statusMessage += `Progress: ${result.progress_message}\n`;
+                    }
+                    
+                    alert(statusMessage);
+                } else {
+                    showError('Failed to check session status: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                showError('Error checking session status: ' + error.message);
+            }
+        }
+
+        function showStoredSessions() {
+            const allSessions = JSON.parse(localStorage.getItem('devin_all_sessions') || '[]');
+            
+            if (allSessions.length === 0) {
+                alert('No stored sessions found.');
+                return;
+            }
+            
+            let sessionsList = 'Stored Devin Sessions:\n\n';
+            allSessions.forEach((session, index) => {
+                const elapsedMinutes = Math.floor((Date.now() - session.startTime) / 60000);
+                sessionsList += `${index + 1}. Issue #${session.issueNumber} (${session.type})\n`;
+                sessionsList += `   Repository: ${session.repository}\n`;
+                sessionsList += `   Running for: ${elapsedMinutes} minutes\n`;
+                sessionsList += `   Session ID: ${session.sessionId}\n\n`;
+            });
+            
+            sessionsList += 'Use "Check Session Status" button to check specific sessions.';
+            alert(sessionsList);
+        }
         
         function showErrorPopup(message) {
             document.getElementById('errorMessage').textContent = message;
@@ -922,7 +1055,16 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showManagementStatus(`Cache cleared: ${result.cleared_files.length} files removed`, 'success');
+                    // Also clear localStorage sessions
+                    localStorage.removeItem('devin_all_sessions');
+                    const keys = Object.keys(localStorage);
+                    keys.forEach(key => {
+                        if (key.startsWith('devin_session_')) {
+                            localStorage.removeItem(key);
+                        }
+                    });
+                    
+                    showManagementStatus(`Cache and stored sessions cleared: ${result.cleared_files.length} files removed`, 'success');
                 } else {
                     showManagementStatus(`Error clearing cache: ${result.error}`, 'error');
                 }

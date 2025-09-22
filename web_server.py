@@ -422,16 +422,18 @@ Labels: {', '.join(issue.labels)}
 State: {issue.state}
 URL: {issue.url}
 
-Please provide a structured analysis with:
-1. confidence_score (0.0 to 1.0) - how confident you are this can be completed successfully
-2. confidence_level (low/medium/high) 
-3. complexity_assessment - brief description of complexity
-4. estimated_effort - time estimate (e.g., "2-4 hours", "1-2 days")
-5. required_skills - list of technical skills needed
-6. action_plan - step-by-step plan to complete the issue
-7. risks - potential risks or blockers
+Return ONLY a JSON object with these exact fields (no additional text or explanations):
+{{
+  "confidence_score": 0.0-1.0,
+  "confidence_level": "low" | "medium" | "high",
+  "complexity_assessment": "Brief description of complexity",
+  "estimated_effort": "Time estimate (e.g., '2-4 hours', '1-2 days')",
+  "required_skills": ["skill1", "skill2", "skill3"],
+  "action_plan": ["step1", "step2", "step3"],
+  "risks": ["risk1", "risk2"]
+}}
 
-Format your response as JSON with these exact field names."""
+Important: Your final output must be valid JSON only, no natural language explanations."""
             
             session = loop.run_until_complete(devin_client.create_session(prompt))
             
@@ -599,9 +601,24 @@ def complete_issue(issue_number):
         
         issue = github_client.get_issue(runtime_config['repo_name'], issue_number)
         
+        cached_scope_result = load_cached_result(issue_number, 'scope')
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
+            action_plan_text = ""
+            if cached_scope_result:
+                action_plan_text = f"""
+Previous Scoping Analysis:
+- Confidence Score: {cached_scope_result.get('confidence_score', 'Unknown')}
+- Estimated Effort: {cached_scope_result.get('estimated_effort', 'Unknown')}
+- Complexity: {cached_scope_result.get('complexity_assessment', 'Unknown')}
+- Action Plan: {', '.join(cached_scope_result.get('action_plan', []))}
+- Required Skills: {', '.join(cached_scope_result.get('required_skills', []))}
+- Risks: {', '.join(cached_scope_result.get('risks', []))}
+
+"""
+
             prompt = f"""Please complete this GitHub issue by implementing the necessary changes:
 
 Repository: {issue.repository}
@@ -613,7 +630,7 @@ Description:
 Labels: {', '.join(issue.labels)}
 URL: {issue.url}
 
-Steps:
+{action_plan_text}Steps:
 1. Implement the change and open a PR.
 2. After the implementation is complete, return ONLY a JSON object containing the fields below. 
    - Do not include natural language explanations, comments, or markdown. 
@@ -634,7 +651,9 @@ JSON Schema:
   "action_plan": [...],
   "risks": [...],
   "test_coverage": "..."
-}} ⚠️ Important: Your final output must be valid JSON only, no natural language explanations."""
+}}
+
+Important: Your final output must be valid JSON only, no natural language explanations."""
             
             session = loop.run_until_complete(devin_client.create_session(prompt))
             

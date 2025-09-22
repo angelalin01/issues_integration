@@ -210,7 +210,7 @@
             </div>
             <div class="form-group">
                 <label for="repo-name">GitHub Repository (e.g., octocat/Hello-World):</label>
-                <input type="text" id="repo-name" placeholder="octocat/Hello-World" value="octocat/Hello-World">
+                <input type="text" id="repo-name" placeholder="octocat/Hello-World" value="angelalin01/Intent-Extract-NLP-Tasks">
             </div>
             <div class="form-group">
                 <label>
@@ -576,7 +576,7 @@
                 <div class="panel high-confidence">
                     <h3>Issue #${issueNumber} Scope Analysis</h3>
                     
-                    <p><strong>Confidence Score:</strong> <span class="confidence-high">${scope.confidence_score.toFixed(2)} (${scope.confidence_level})</span></p>
+                    <p><strong>Confidence Score:</strong> <span class="confidence-high">${(scope.confidence_score || 0.5).toFixed(2)} (${scope.confidence_level || 'medium'})</span></p>
                     <p><strong>Complexity:</strong> ${scope.complexity_assessment}</p>
                     <p><strong>Estimated Effort:</strong> ${scope.estimated_effort}</p>
                     
@@ -600,7 +600,7 @@
                         `<p><strong>GitHub Comment:</strong> <a href="${scope.comment_posted.comment_url}" target="_blank" class="url">View Comment</a></p>` : ''}
                 </div>
                 
-                <p><strong>✅ Issue scoped with ${(scope.confidence_score * 100).toFixed(0)}% confidence</strong></p>
+                <p><strong>✅ Issue scoped with ${((scope.confidence_score || 0.5) * 100).toFixed(0)}% confidence</strong></p>
             `;
 
             document.getElementById('complete-btn').disabled = false;

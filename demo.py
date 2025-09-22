@@ -12,7 +12,7 @@ console = Console()
 
 class DemoData:
     """Demo data for testing without real API keys"""
-    
+
     @staticmethod
     def get_sample_issues() -> List[GitHubIssue]:
         """Generate sample GitHub issues for demo"""
@@ -78,7 +78,7 @@ class DemoData:
                 repository="example/repo"
             )
         ]
-    
+
     @staticmethod
     def get_sample_scope_result(issue_number: int) -> IssueScopeResult:
         """Generate sample scoping result based on issue number"""
@@ -167,9 +167,9 @@ class DemoData:
                 "risks": ["Data migration failures", "Downtime during migration", "Version-specific edge cases"]
             }
         }
-        
+
         data = scope_data.get(issue_number, scope_data[123])  # Default to first issue
-        
+
         return IssueScopeResult(
             issue_number=issue_number,
             confidence_score=data["confidence_score"],
@@ -182,7 +182,7 @@ class DemoData:
             session_id=f"demo_session_{issue_number}",
             session_url=f"https://app.devin.ai/sessions/demo_{issue_number}"
         )
-    
+
     @staticmethod
     def get_sample_completion_result(issue_number: int) -> TaskCompletionResult:
         """Generate sample completion result based on issue number"""
@@ -193,7 +193,7 @@ class DemoData:
                 "completion_summary": "Successfully implemented OAuth2 authentication with GitHub and Google providers. Added login/logout functionality with session management.",
                 "files_modified": [
                     "src/components/Login.jsx",
-                    "src/components/AuthCallback.jsx", 
+                    "src/components/AuthCallback.jsx",
                     "src/middleware/auth.js",
                     "src/utils/oauth.js",
                     "src/styles/auth.css",
@@ -215,7 +215,7 @@ class DemoData:
                 "pull_request_url": "https://github.com/example/repo/pull/457"
             },
             125: {
-                "status": "completed", 
+                "status": "completed",
                 "success": True,
                 "completion_summary": "Updated API documentation with all current endpoints, added examples and improved formatting.",
                 "files_modified": [
@@ -246,7 +246,7 @@ class DemoData:
                 "completion_summary": "Fixed PostgreSQL 14 compatibility issues in migration scripts and added version checks.",
                 "files_modified": [
                     "migrations/001_initial.sql",
-                    "migrations/002_user_tables.sql", 
+                    "migrations/002_user_tables.sql",
                     "scripts/migrate.py",
                     "scripts/version_check.py",
                     "docs/deployment.md"
@@ -254,9 +254,9 @@ class DemoData:
                 "pull_request_url": "https://github.com/example/repo/pull/460"
             }
         }
-        
+
         data = completion_data.get(issue_number, completion_data[123])  # Default to first issue
-        
+
         return TaskCompletionResult(
             issue_number=issue_number,
             status=data["status"],
@@ -270,10 +270,10 @@ class DemoData:
 
 class DemoApp:
     """Demo application showing GitHub Issues Integration functionality"""
-    
+
     def __init__(self):
         self.issues = DemoData.get_sample_issues()
-    
+
     def display_issues(self):
         """Display issues in a formatted table"""
         table = Table(title="GitHub Issues - Demo Repository")
@@ -282,7 +282,7 @@ class DemoApp:
         table.add_column("State", style="green")
         table.add_column("Labels", style="blue")
         table.add_column("Assignees", style="yellow")
-        
+
         for issue in self.issues:
             table.add_row(
                 str(issue.number),
@@ -291,13 +291,13 @@ class DemoApp:
                 ", ".join(issue.labels[:3]) + ("..." if len(issue.labels) > 3 else ""),
                 ", ".join(issue.assignees[:2]) + ("..." if len(issue.assignees) > 2 else "")
             )
-        
+
         console.print(table)
-    
+
     def display_scope_result(self, result: IssueScopeResult):
         """Display issue scoping results"""
         confidence_color = "green" if result.confidence_level.value == "high" else "yellow" if result.confidence_level.value == "medium" else "red"
-        
+
         panel_content = f"""
 [bold]Confidence Score:[/bold] [{confidence_color}]{result.confidence_score:.2f} ({result.confidence_level.value})[/{confidence_color}]
 [bold]Complexity:[/bold] {result.complexity_assessment}
@@ -314,18 +314,18 @@ class DemoApp:
 
 [bold]Devin Session:[/bold] {result.session_url}
 """
-        
+
         panel = Panel(
             panel_content,
             title=f"Issue #{result.issue_number} Scope Analysis",
             border_style=confidence_color
         )
         console.print(panel)
-    
+
     def display_completion_result(self, result: TaskCompletionResult):
         """Display task completion results"""
         status_color = "green" if result.success else "red"
-        
+
         panel_content = f"""
 [bold]Status:[/bold] [{status_color}]{result.status}[/{status_color}]
 [bold]Success:[/bold] [{status_color}]{result.success}[/{status_color}]
@@ -340,35 +340,35 @@ class DemoApp:
 
 [bold]Devin Session:[/bold] {result.session_url}
 """
-        
+
         panel = Panel(
             panel_content,
             title=f"Issue #{result.issue_number} Completion Result",
             border_style=status_color
         )
         console.print(panel)
-    
+
     async def demo_workflow(self):
         """Demonstrate the complete workflow"""
         console.print("[bold blue]🚀 GitHub Issues Integration with Devin - Demo Mode[/bold blue]\n")
-        
+
         console.print("[bold]Step 1: Listing GitHub Issues[/bold]")
         self.display_issues()
-        
+
         console.print(f"\n[bold]Step 2: Scoping Issue #123[/bold]")
         console.print("Analyzing issue with Devin...")
         await asyncio.sleep(1)  # Simulate API call
-        
+
         scope_result = DemoData.get_sample_scope_result(123)
         self.display_scope_result(scope_result)
-        
+
         console.print(f"\n[bold]Step 3: Completing Issue #123[/bold]")
         console.print("Triggering Devin session to complete the issue...")
         await asyncio.sleep(2)  # Simulate longer API call
-        
+
         completion_result = DemoData.get_sample_completion_result(123)
         self.display_completion_result(completion_result)
-        
+
         console.print(f"\n[bold green]✅ Demo Complete![/bold green]")
         console.print(f"The GitHub Issues Integration successfully:")
         console.print(f"• Listed issues from the repository")

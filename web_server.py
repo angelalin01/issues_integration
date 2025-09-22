@@ -484,10 +484,42 @@ def get_scope_status(issue_number, session_id):
                     })
                 
                 output = session.structured_output or {}
+                if isinstance(output, str):
+                    try:
+                        output = json.loads(output)
+                    except Exception:
+                        output = {}
+                
+                cs_raw = output.get("confidence_score") or output.get("confidence") or 0.5
+                try:
+                    confidence_score = float(cs_raw)
+                except Exception:
+                    confidence_score = 0.5
+                
+                from models import ConfidenceLevel
+                if confidence_score >= 0.8:
+                    confidence_level = ConfidenceLevel.HIGH
+                elif confidence_score >= 0.5:
+                    confidence_level = ConfidenceLevel.MEDIUM
+                else:
+                    confidence_level = ConfidenceLevel.LOW
+                
+                structured_result = {
+                    'confidence_score': confidence_score,
+                    'confidence_level': confidence_level.value,
+                    'complexity_assessment': output.get("complexity_assessment") or output.get("complexity") or "Unknown complexity",
+                    'estimated_effort': output.get("estimated_effort") or output.get("effort") or "Unknown effort",
+                    'required_skills': output.get("required_skills") or output.get("skills") or [],
+                    'action_plan': output.get("action_plan") or output.get("plan") or [],
+                    'risks': output.get("risks") or [],
+                    'session_id': session_id,
+                    'session_url': session.url or f"https://app.devin.ai/sessions/{session_id.replace('devin-', '')}"
+                }
+                
                 return jsonify({
                     'success': True,
                     'status': session.status,
-                    'result': output
+                    'result': structured_result
                 })
             else:
                 progress_message = "Processing with Devin AI..."

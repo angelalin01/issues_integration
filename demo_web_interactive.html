@@ -857,7 +857,7 @@
                             </ul>
                             
                             <p><strong>Pull Request:</strong> <a href="${completion.pull_request_url || '#'}" class="url">${completion.pull_request_url || 'None created'}</a></p>
-                            <p><strong>Devin Session:</strong> <a href="${completion.session_url}" class="url">${completion.session_url}</a></p>
+                            <p><strong>Devin Session:</strong> ${completion.session_url ? `<a href="${completion.session_url}" class="url">${completion.session_url}</a>` : 'Not available'}</p>
                             ${completion.comment_posted && completion.comment_posted.success ? 
                                 `<p><strong>GitHub Comment:</strong> <a href="${completion.comment_posted.comment_url}" target="_blank" class="url">View Comment</a></p>` : ''}
                         </div>

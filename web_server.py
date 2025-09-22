@@ -485,7 +485,9 @@ def get_scope_status(issue_number, session_id):
             return jsonify({
                 'success': True,
                 'status': current_stage["status"],
-                'progress_message': current_stage["progress"]
+                'session_url': None,
+                'progress_message': current_stage["progress"],
+                'action_plan_preview': []
             })
         
         devin_client = get_devin_client()
@@ -815,6 +817,7 @@ def get_completion_status(issue_number, session_id):
                     return jsonify({
                         'success': True,
                         'status': 'completed',
+                        'session_url': cached_result.get('session_url'),
                         'result': cached_result
                     })
             

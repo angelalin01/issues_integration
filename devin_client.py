@@ -1,6 +1,8 @@
 import asyncio
 import aiohttp
 import json
+import ssl
+import certifi
 from typing import Optional, Dict, Any
 from datetime import datetime
 from models import DevinSession, IssueScopeResult, TaskCompletionResult, ConfidenceLevel, GitHubIssue
@@ -13,10 +15,15 @@ class DevinClient:
             raise ValueError("DEVIN_API_KEY environment variable is required. Please set a valid Devin API key.")
         self.api_base = Config.DEVIN_API_BASE
         self.headers = {"Authorization": f"Bearer {self.api_key}"}
+        
+        self.ssl_context = ssl.create_default_context(cafile=certifi.where())
+        self.ssl_context.check_hostname = True
+        self.ssl_context.verify_mode = ssl.CERT_REQUIRED
     
     async def create_session(self, prompt: str) -> DevinSession:
         """Create a new Devin session"""
-        async with aiohttp.ClientSession(headers=self.headers) as session:
+        connector = aiohttp.TCPConnector(ssl=self.ssl_context)
+        async with aiohttp.ClientSession(headers=self.headers, connector=connector) as session:
             async with session.post(
                 f"{self.api_base}/sessions",
                 json={"prompt": prompt}
@@ -45,7 +52,8 @@ class DevinClient:
     
     async def get_session_status(self, session_id: str) -> DevinSession:
         """Get session status and results"""
-        async with aiohttp.ClientSession(headers=self.headers) as session:
+        connector = aiohttp.TCPConnector(ssl=self.ssl_context)
+        async with aiohttp.ClientSession(headers=self.headers, connector=connector) as session:
             async with session.get(
                 f"{self.api_base}/sessions/{session_id}"
             ) as response:

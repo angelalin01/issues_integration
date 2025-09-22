@@ -45,6 +45,14 @@ class TaskCompletionResult(BaseModel):
     session_id: str
     session_url: str
     success: bool
+    confidence_score: float
+    confidence_level: ConfidenceLevel
+    complexity_assessment: str
+    implementation_quality: str
+    required_skills: List[str]
+    action_plan: List[str]
+    risks: List[str]
+    test_coverage: str
 
 class DevinSession(BaseModel):
     session_id: str

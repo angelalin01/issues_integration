@@ -593,23 +593,37 @@ def complete_issue(issue_number):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            completion_result = loop.run_until_complete(devin_client.complete_issue(issue))
-            result_dict = completion_result.dict()
+            prompt = f"""
+Please complete this GitHub issue by implementing the necessary changes:
+
+Repository: {issue.repository}
+Issue #{issue.number}: {issue.title}
+
+Description:
+{issue.body}
+
+Labels: {', '.join(issue.labels)}
+URL: {issue.url}
+
+Please provide a structured response with all the fields as specified in the DevinClient.complete_issue method.
+
+Format your response as JSON with these exact field names."""
             
-            save_cached_result(issue_number, 'complete', result_dict)
+            session = loop.run_until_complete(devin_client.create_session(prompt))
             
-            if runtime_config['enable_commenting']:
-                comment_body = format_completion_comment(result_dict, issue_number)
-                comment_result = github_client.add_issue_comment(
-                    runtime_config['repo_name'], issue_number, comment_body
-                )
-                result_dict['comment_posted'] = comment_result
+            import threading
+            thread = threading.Thread(
+                target=lambda: asyncio.run(complete_completion_session(issue_number, session.session_id, issue))
+            )
+            thread.daemon = True
+            thread.start()
             
             return jsonify({
                 'success': True,
                 'demo_mode': False,
                 'cached': False,
-                'result': result_dict
+                'session_id': session.session_id,
+                'session_url': session.url
             })
         finally:
             loop.close()
@@ -772,6 +786,168 @@ def clear_cache():
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/complete/<int:issue_number>/status/<session_id>')
+def get_completion_status(issue_number, session_id):
+    """Get the status of a completion session"""
+    try:
+        if runtime_config['demo_mode']:
+            import time
+            import random
+            
+            stages = [
+                {"status": "running", "progress": "Analyzing codebase..."},
+                {"status": "running", "progress": "Implementing changes..."},
+                {"status": "running", "progress": "Creating tests..."},
+                {"status": "running", "progress": "Creating pull request..."},
+                {"status": "completed", "progress": "Implementation complete"}
+            ]
+            
+            stage_index = min(len(stages) - 1, abs(hash(session_id)) % len(stages))
+            current_stage = stages[stage_index]
+            
+            if current_stage["status"] == "completed":
+                cached_result = load_cached_result(issue_number, 'complete')
+                if cached_result:
+                    return jsonify({
+                        'success': True,
+                        'status': 'completed',
+                        'result': cached_result
+                    })
+            
+            return jsonify({
+                'success': True,
+                'status': current_stage["status"],
+                'progress_message': current_stage["progress"]
+            })
+        
+        devin_client = get_devin_client()
+        if not devin_client:
+            return jsonify({'success': False, 'error': 'Devin client not available'})
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            session = loop.run_until_complete(devin_client.get_session_status(session_id))
+            print(f"DEBUG: Completion status endpoint - session {session_id} has status: {session.status}")
+            
+            if session.status in ["completed", "stopped", "blocked", "suspended"]:
+                cached_result = load_cached_result(issue_number, 'complete')
+                print(f"DEBUG: Looking for cached completion result for issue {issue_number}, found: {cached_result is not None}")
+                if cached_result:
+                    # PROTECTION: Never return demo data in live mode
+                    if not runtime_config.get('demo_mode', False):
+                        # Verify this isn't demo data by checking for demo indicators
+                        if not (isinstance(cached_result, dict) and 
+                               (cached_result.get('session_id', '').startswith('demo-') or
+                                cached_result.get('completion_summary') == 'Successfully implemented OAuth2 authentication with GitHub and Google providers. Added login/logout functionality with session management.')):
+                            return jsonify({
+                                'success': True,
+                                'status': session.status,
+                                'result': cached_result
+                            })
+                    elif runtime_config.get('demo_mode', False):
+                        return jsonify({
+                            'success': True,
+                            'status': session.status,
+                            'result': cached_result
+                        })
+                
+                # Return session structured output directly
+                return jsonify({
+                    'success': True,
+                    'status': session.status,
+                    'result': session.structured_output
+                })
+            else:
+                progress_message = "Processing with Devin AI..."
+                if session.structured_output:
+                    if isinstance(session.structured_output, dict):
+                        progress_message = session.structured_output.get('progress', progress_message)
+                
+                return jsonify({
+                    'success': True,
+                    'status': session.status,
+                    'progress_message': progress_message
+                })
+        finally:
+            loop.close()
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+async def complete_completion_session(issue_number, session_id, issue):
+    """Background task to complete completion session and cache result"""
+    try:
+        print(f"DEBUG: Starting background completion task for issue {issue_number}, session {session_id}")
+        devin_client = get_devin_client()
+        if not devin_client:
+            print(f"DEBUG: No devin client available for completion session {session_id}")
+            return
+        
+        print(f"DEBUG: Waiting for completion of session {session_id}")
+        completed_session = await devin_client.wait_for_completion(session_id)
+        print(f"DEBUG: Completion session {session_id} completed with status: {completed_session.status}")
+        
+        output = completed_session.structured_output or {}
+        if isinstance(output, str):
+            try:
+                output = json.loads(output)
+            except Exception:
+                output = {}
+        
+        cs_raw = output.get("confidence_score") or output.get("confidence") or 0.5
+        try:
+            confidence_score = float(cs_raw)
+        except Exception:
+            confidence_score = 0.5
+        
+        from models import ConfidenceLevel, TaskCompletionResult
+        if confidence_score >= 0.8:
+            confidence_level = ConfidenceLevel.HIGH
+        elif confidence_score >= 0.5:
+            confidence_level = ConfidenceLevel.MEDIUM
+        else:
+            confidence_level = ConfidenceLevel.LOW
+        
+        completion_result = TaskCompletionResult(
+            issue_number=issue.number,
+            status=output.get("status") or "unknown",
+            completion_summary=output.get("completion_summary") or output.get("summary") or "No summary available",
+            files_modified=output.get("files_modified") or output.get("files") or [],
+            pull_request_url=output.get("pull_request_url"),
+            session_id=session_id,
+            session_url=completed_session.url or f"https://app.devin.ai/sessions/{session_id.replace('devin-', '')}",
+            success=bool(output.get("success", False)),
+            confidence_score=confidence_score,
+            confidence_level=confidence_level,
+            complexity_assessment=output.get("complexity_assessment") or output.get("complexity") or "Unknown complexity",
+            implementation_quality=output.get("implementation_quality") or "Unknown quality",
+            required_skills=output.get("required_skills") or output.get("skills") or [],
+            action_plan=output.get("action_plan") or output.get("plan") or [],
+            risks=output.get("risks") or [],
+            test_coverage=output.get("test_coverage") or "Unknown coverage"
+        )
+        
+        result_dict = completion_result.dict()
+        print(f"DEBUG: Saving cached completion result for issue {issue_number}: {result_dict}")
+        save_cached_result(issue_number, 'complete', result_dict)
+        print(f"DEBUG: Cached completion result saved successfully for issue {issue_number}")
+        
+        if runtime_config['enable_commenting']:
+            github_client = get_github_client()
+            if github_client:
+                comment_body = format_completion_comment(result_dict, issue_number)
+                comment_result = github_client.add_issue_comment(
+                    runtime_config['repo_name'], issue_number, comment_body
+                )
+                result_dict['comment_posted'] = comment_result
+                save_cached_result(issue_number, 'complete', result_dict)
+                
+    except Exception as e:
+        print(f"DEBUG: Error completing completion session {session_id}: {e}")
+        import traceback
+        print(f"DEBUG: Full traceback: {traceback.format_exc()}")
 
 def run_server(host='127.0.0.1', port=5000):
     """Run the Flask server"""

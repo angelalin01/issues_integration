@@ -200,6 +200,14 @@ Provide a structured response with:
 - files_modified: list of files that were changed
 - pull_request_url: URL of created PR (if any)
 - success: boolean indicating if task was completed successfully
+- confidence_score: (0.0 to 1.0) how confident you are in the implementation quality
+- confidence_level: (low/medium/high)
+- complexity_assessment: brief description of implementation complexity
+- implementation_quality: assessment of code quality and completeness
+- required_skills: list of technical skills that were needed
+- action_plan: step-by-step summary of what was implemented
+- risks: potential risks or issues with the implementation
+- test_coverage: description of tests added or testing performed
 
 Format your response as JSON with these exact field names.
 """
@@ -214,6 +222,19 @@ Format your response as JSON with these exact field names.
             except Exception:
                 output = {}
         
+        cs_raw = output.get("confidence_score") or output.get("confidence") or 0.5
+        try:
+            confidence_score = float(cs_raw)
+        except Exception:
+            confidence_score = 0.5
+        
+        if confidence_score >= 0.8:
+            confidence_level = ConfidenceLevel.HIGH
+        elif confidence_score >= 0.5:
+            confidence_level = ConfidenceLevel.MEDIUM
+        else:
+            confidence_level = ConfidenceLevel.LOW
+
         return TaskCompletionResult(
             issue_number=issue.number,
             status=output.get("status") or "unknown",
@@ -222,5 +243,13 @@ Format your response as JSON with these exact field names.
             pull_request_url=output.get("pull_request_url"),
             session_id=session.session_id,
             session_url=session.url,
-            success=bool(output.get("success", False))
+            success=bool(output.get("success", False)),
+            confidence_score=confidence_score,
+            confidence_level=confidence_level,
+            complexity_assessment=output.get("complexity_assessment") or output.get("complexity") or "Unknown complexity",
+            implementation_quality=output.get("implementation_quality") or "Unknown quality",
+            required_skills=output.get("required_skills") or output.get("skills") or [],
+            action_plan=output.get("action_plan") or output.get("plan") or [],
+            risks=output.get("risks") or [],
+            test_coverage=output.get("test_coverage") or "Unknown coverage"
         )

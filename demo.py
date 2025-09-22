@@ -265,7 +265,15 @@ class DemoData:
             pull_request_url=data["pull_request_url"],
             session_id=f"demo_completion_{issue_number}",
             session_url=f"https://app.devin.ai/sessions/demo_completion_{issue_number}",
-            success=data["success"]
+            success=data["success"],
+            confidence_score=data.get("confidence_score", 0.85),
+            confidence_level=ConfidenceLevel.HIGH,
+            complexity_assessment=data.get("complexity_assessment", "Medium complexity implementation"),
+            implementation_quality=data.get("implementation_quality", "High quality with proper error handling"),
+            required_skills=data.get("required_skills", ["React/Frontend", "OAuth2", "Authentication"]),
+            action_plan=data.get("action_plan", ["Implemented OAuth2 integration", "Added login components", "Created tests"]),
+            risks=data.get("risks", ["OAuth provider changes", "Session security"]),
+            test_coverage=data.get("test_coverage", "Comprehensive unit and integration tests")
         )
 
 class DemoApp:

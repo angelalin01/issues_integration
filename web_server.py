@@ -407,52 +407,20 @@ def scope_issue(issue_number):
         
         issue = github_client.get_issue(runtime_config['repo_name'], issue_number)
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            prompt = f"""Please analyze this GitHub issue and provide a structured assessment:
-
-Repository: {issue.repository}
-Issue #{issue.number}: {issue.title}
-
-Description:
-{issue.body}
-
-Labels: {', '.join(issue.labels)}
-State: {issue.state}
-URL: {issue.url}
-
-Return ONLY a JSON object with these exact fields (no additional text or explanations):
-{{
-  "confidence_score": 0.0-1.0,
-  "confidence_level": "low" | "medium" | "high",
-  "complexity_assessment": "Brief description of complexity",
-  "estimated_effort": "Time estimate (e.g., '2-4 hours', '1-2 days')",
-  "required_skills": ["skill1", "skill2", "skill3"],
-  "action_plan": ["step1", "step2", "step3"],
-  "risks": ["risk1", "risk2"]
-}}
-
-Important: Your final output must be valid JSON only, no natural language explanations."""
-            
-            session = loop.run_until_complete(devin_client.create_session(prompt))
-            
-            import threading
-            thread = threading.Thread(
-                target=lambda: asyncio.run(complete_scope_session(issue_number, session.session_id, issue))
-            )
-            thread.daemon = True
-            thread.start()
-            
-            return jsonify({
-                'success': True,
-                'demo_mode': False,
-                'session_id': session.session_id,
-                'session_url': session.url,
-                'status': 'started'
-            })
-        finally:
-            loop.close()
+        import threading
+        thread = threading.Thread(
+            target=lambda: asyncio.run(complete_scope_session_with_devin_client(issue_number, issue))
+        )
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            'success': True,
+            'demo_mode': False,
+            'session_id': 'pending',
+            'session_url': 'pending',
+            'status': 'started'
+        })
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -644,6 +612,41 @@ def complete_issue(issue_number):
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+async def complete_scope_session_with_devin_client(issue_number: int, issue):
+    """Complete a scope session using DevinClient.scope_issue()"""
+    try:
+        devin_client = get_devin_client()
+        if not devin_client:
+            print(f"[complete_scope_session_with_devin_client] No Devin client available for issue {issue_number}")
+            return
+        
+        print(f"[complete_scope_session_with_devin_client] Starting scoping for issue {issue_number}")
+        
+        scope_result = await devin_client.scope_issue(issue)
+        
+        print(f"[complete_scope_session_with_devin_client] Scoping finished for issue {issue_number}")
+        
+        result_dict = scope_result.dict()
+        save_cached_result(issue_number, 'scope', result_dict)
+        
+        print(f"[complete_scope_session_with_devin_client] Cached scope result for issue {issue_number}")
+        
+        if runtime_config['enable_commenting']:
+            github_client = get_github_client()
+            if github_client:
+                comment_body = format_scope_comment(result_dict, issue_number)
+                comment_result = github_client.add_issue_comment(
+                    runtime_config['repo_name'], issue_number, comment_body
+                )
+                result_dict['comment_posted'] = comment_result
+                save_cached_result(issue_number, 'scope', result_dict)
+        
+    except Exception as e:
+        print(f"[complete_scope_session_with_devin_client] Error scoping issue {issue_number}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+
 
 async def complete_scope_session(issue_number, session_id, issue):
     """Background task to complete scoping session and cache result"""

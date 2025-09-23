@@ -953,7 +953,11 @@
                         
                         if (result.result) {
                             createdPRUrl = result.result.pull_request_url;
-                            displayPRCreationResult(issueNumber, result.result, result);
+                            const completeResult = {
+                                ...result.result,
+                                session_url: result.session_url
+                            };
+                            displayPRCreationResult(issueNumber, completeResult, result);
                         }
                         return;
                     }
@@ -985,7 +989,11 @@
                     
                     if (result.success && result.status && ['completed', 'stopped', 'blocked'].includes(result.status)) {
                         if (result.result) {
-                            displaySummaryResult(issueNumber, result.result, result);
+                            const completeResult = {
+                                ...result.result,
+                                session_url: result.session_url
+                            };
+                            displaySummaryResult(issueNumber, completeResult, result);
                         }
                         return;
                     }

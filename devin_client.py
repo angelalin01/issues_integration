@@ -20,7 +20,7 @@ class DevinClient:
         self.ssl_context.check_hostname = True
         self.ssl_context.verify_mode = ssl.CERT_REQUIRED
     
-    async def create_session(self, prompt: str, prefill_response: str = None) -> DevinSession:
+    async def create_session(self, prompt: str, prefill_response: Optional[str] = None) -> DevinSession:
         """Create a new Devin session"""
         connector = aiohttp.TCPConnector(ssl=self.ssl_context)
         async with aiohttp.ClientSession(headers=self.headers, connector=connector) as session:
@@ -318,3 +318,39 @@ Respond in JSON only, using this schema:
             risks=output.get("risks") or [],
             test_coverage=output.get("test_coverage") or "Unknown coverage"
         )
+
+    async def create_summary_session(self, issue: GitHubIssue, pr_url: Optional[str] = None) -> DevinSession:
+        """Create a summary session without waiting for completion"""
+        pr_context = f"Pull Request URL: {pr_url}\n\n" if pr_url else ""
+        
+        summary_prompt = f"""Please analyze and summarize the implementation for Issue #{issue.number}.
+
+{pr_context}Repository: {issue.repository}
+Issue #{issue.number}: {issue.title}
+
+Description:
+{issue.body}
+
+Respond in JSON only, using this schema:
+
+{{
+  "status": "",
+  "completion_summary": "",
+  "files_modified": [],
+  "pull_request_url": "",
+  "success": true,
+  "confidence_score": 0.0,
+  "confidence_level": "",
+  "complexity_assessment": "",
+  "implementation_quality": "",
+  "required_skills": [],
+  "action_plan": [],
+  "risks": [],
+  "test_coverage": ""
+}}
+
+⚠️ Important: 
+- Return only the JSON object, with no natural language, markdown, or comments.
+- Do not explain the JSON, just fill in the fields with the results of the PR you just created."""
+        
+        return await self.create_session(summary_prompt)

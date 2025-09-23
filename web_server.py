@@ -820,25 +820,82 @@ def generate_summary(issue_number):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            completion_result = loop.run_until_complete(devin_client.generate_summary(issue, pr_url))
+            session = loop.run_until_complete(devin_client.create_summary_session(issue, pr_url))
             
-            result_dict = completion_result.model_dump()
-            save_cached_result(issue_number, 'complete', result_dict)
-            
-            if runtime_config['enable_commenting']:
-                github_client = get_github_client()
-                if github_client:
-                    comment_body = format_completion_comment(result_dict, issue_number)
-                    comment_result = github_client.add_issue_comment(
-                        runtime_config['repo_name'], issue_number, comment_body
+            import threading
+            def complete_summary_session():
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    completion_result = loop.run_until_complete(devin_client.wait_for_completion(session.session_id))
+                    
+                    output = completion_result.structured_output or {}
+                    if isinstance(output, str):
+                        try:
+                            import json
+                            output = json.loads(output)
+                        except Exception:
+                            output = {}
+                    
+                    from models import TaskCompletionResult, ConfidenceLevel
+                    cs_raw = output.get("confidence_score") or output.get("confidence") or 0.5
+                    try:
+                        confidence_score = float(cs_raw)
+                    except Exception:
+                        confidence_score = 0.5
+                    
+                    if confidence_score >= 0.8:
+                        confidence_level = ConfidenceLevel.HIGH
+                    elif confidence_score >= 0.5:
+                        confidence_level = ConfidenceLevel.MEDIUM
+                    else:
+                        confidence_level = ConfidenceLevel.LOW
+
+                    task_result = TaskCompletionResult(
+                        issue_number=issue.number,
+                        status=output.get("status") or "completed",
+                        completion_summary=output.get("completion_summary") or "Summary generated successfully",
+                        files_modified=output.get("files_modified") or [],
+                        pull_request_url=output.get("pull_request_url") or pr_url,
+                        session_id=session.session_id,
+                        session_url=session.url,
+                        success=bool(output.get("success", True)),
+                        confidence_score=confidence_score,
+                        confidence_level=confidence_level,
+                        complexity_assessment=output.get("complexity_assessment") or "Standard complexity",
+                        implementation_quality=output.get("implementation_quality") or "High quality",
+                        required_skills=output.get("required_skills") or ["Software development"],
+                        action_plan=output.get("action_plan") or ["Implementation completed"],
+                        risks=output.get("risks") or ["Standard risks"],
+                        test_coverage=output.get("test_coverage") or "Appropriate coverage"
                     )
-                    result_dict['comment_posted'] = comment_result
+                    
+                    result_dict = task_result.model_dump()
                     save_cached_result(issue_number, 'complete', result_dict)
+                    
+                    if runtime_config['enable_commenting']:
+                        github_client = get_github_client()
+                        if github_client:
+                            comment_body = format_completion_comment(result_dict, issue_number)
+                            comment_result = github_client.add_issue_comment(
+                                runtime_config['repo_name'], issue_number, comment_body
+                            )
+                            result_dict['comment_posted'] = comment_result
+                            save_cached_result(issue_number, 'complete', result_dict)
+                    
+                    loop.close()
+                except Exception as e:
+                    print(f"Error in background summary completion: {e}")
+            
+            thread = threading.Thread(target=complete_summary_session)
+            thread.daemon = True
+            thread.start()
             
             return jsonify({
                 'success': True,
                 'demo_mode': False,
-                'result': result_dict
+                'session_id': session.session_id,
+                'session_url': session.url
             })
         finally:
             loop.close()

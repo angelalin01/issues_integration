@@ -919,17 +919,24 @@
                 }
 
                 // Show session URL immediately for live mode
-                if (result.session_url) {
-                    const progressDiv = document.getElementById(`generate-summary-progress-${selectedIssueNumber}`);
-                    progressDiv.innerHTML = `
-                        <p><strong>Live Devin Session:</strong> <a href="${result.session_url}" target="_blank" class="url">${result.session_url}</a></p>
+                if (result.session_id && result.session_url) {
+                    const stepDiv = document.getElementById(`generate-summary-step-${selectedIssueNumber}`);
+                    stepDiv.innerHTML = `
+                        <div class="step-title">Step 3b: Generating Summary for Issue #${selectedIssueNumber}</div>
+                        <div class="panel loading">
+                            <h3>Summary Generation in Progress</h3>
+                            <p><strong>Status:</strong> <span class="loading">Processing...</span></p>
+                            <p><strong>Session URL:</strong> <a href="${result.session_url}" class="url">${result.session_url}</a></p>
+                        </div>
                     `;
                     
                     // Start polling for summary generation status
                     pollSummaryGenerationStatus(selectedIssueNumber, result.session_id);
-                } else if (result.demo_mode) {
-                    // Handle demo mode
+                } else if (result.result) {
+                    // Demo mode or cached result
                     displaySummaryResult(selectedIssueNumber, result.result, result);
+                } else {
+                    showError('Failed to generate summary: No session or result data received');
                 }
             } catch (error) {
                 showError('Failed to generate summary: ' + error.message);

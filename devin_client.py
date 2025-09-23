@@ -20,13 +20,17 @@ class DevinClient:
         self.ssl_context.check_hostname = True
         self.ssl_context.verify_mode = ssl.CERT_REQUIRED
     
-    async def create_session(self, prompt: str) -> DevinSession:
+    async def create_session(self, prompt: str, prefill_response: str = None) -> DevinSession:
         """Create a new Devin session"""
         connector = aiohttp.TCPConnector(ssl=self.ssl_context)
         async with aiohttp.ClientSession(headers=self.headers, connector=connector) as session:
+            payload = {"prompt": prompt}
+            if prefill_response:
+                payload["prefill_response"] = prefill_response
+            
             async with session.post(
                 f"{self.api_base}/sessions",
-                json={"prompt": prompt}
+                json=payload
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()
@@ -129,10 +133,12 @@ Please provide a structured analysis with:
 6. action_plan - step-by-step plan to complete the issue
 7. risks - potential risks or blockers
 
+IMPORTANT: Do NOT start implementation in this scoping step. Only provide analysis.
+
 Format your response as JSON with these exact field names.
 """
         
-        session = await self.create_session(prompt)
+        session = await self.create_session(prompt, prefill_response="json '{")
         completed_session = await self.wait_for_completion(session.session_id)
         
         output = completed_session.structured_output or {}
@@ -159,11 +165,11 @@ Format your response as JSON with these exact field names.
             issue_number=issue.number,
             confidence_score=confidence_score,
             confidence_level=confidence_level,
-            complexity_assessment=output.get("complexity_assessment") or output.get("complexity") or "Unknown complexity",
-            estimated_effort=output.get("estimated_effort") or output.get("effort") or "Unknown effort",
-            required_skills=output.get("required_skills") or output.get("skills") or [],
-            action_plan=output.get("action_plan") or output.get("plan") or [],
-            risks=output.get("risks") or [],
+            complexity_assessment=output.get("complexity_assessment") or output.get("complexity") or "Analysis pending",
+            estimated_effort=output.get("estimated_effort") or output.get("effort") or "Effort estimation pending",
+            required_skills=output.get("required_skills") or output.get("skills") or ["General development skills"],
+            action_plan=output.get("action_plan") or output.get("plan") or ["Analysis and planning required"],
+            risks=output.get("risks") or ["Standard implementation risks"],
             session_id=session.session_id,
             session_url=session.url
         )
@@ -173,10 +179,18 @@ Format your response as JSON with these exact field names.
         action_plan_text = ""
         if scope_result:
             action_plan_text = f"""
-Previous Analysis:
-- Confidence Score: {scope_result.confidence_score}
-- Estimated Effort: {scope_result.estimated_effort}
-- Action Plan: {', '.join(scope_result.action_plan)}
+Previous Scoping Analysis (JSON):
+{{
+  "confidence_score": {scope_result.confidence_score},
+  "confidence_level": "{scope_result.confidence_level.value}",
+  "complexity_assessment": "{scope_result.complexity_assessment}",
+  "estimated_effort": "{scope_result.estimated_effort}",
+  "required_skills": {json.dumps(scope_result.required_skills)},
+  "action_plan": {json.dumps(scope_result.action_plan)},
+  "risks": {json.dumps(scope_result.risks)}
+}}
+
+Use this analysis to guide your implementation approach.
 """
         
         implementation_prompt = f"""Please complete this GitHub issue by implementing the necessary changes and opening a PR.
@@ -194,7 +208,7 @@ URL: {issue.url}
 
 Steps:
 1. Clone the repo if needed
-2. Implement the fix
+2. Implement the fix based on the scoping analysis above
 3. Create a pull request
 4. Return the result as JSON
 

@@ -292,7 +292,7 @@
             }
 
             try {
-                const response = await fetch('/api/config', {
+                const response = await fetch(`${window.location.origin}/api/config`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -335,6 +335,8 @@
             } catch (error) {
                 showError('Configuration failed: ' + error.message);
             }
+        }
+
         async function testDevinAuth() {
             const stepsDiv = document.getElementById('demo-steps');
             stepsDiv.innerHTML = `
@@ -344,7 +346,7 @@
                 </div>
             `;
             try {
-                const resp = await fetch('/api/test-devin-auth');
+                const resp = await fetch(`${window.location.origin}/api/test-devin-auth`);
                 const result = await resp.json();
                 if (result.success) {
                     stepsDiv.innerHTML = `
@@ -379,9 +381,7 @@
                 showError(e.message);
             }
         }
-
-        }
-
+        
         async function listIssues() {
             const stepsDiv = document.getElementById('demo-steps');
             stepsDiv.innerHTML = `
@@ -392,7 +392,7 @@
             `;
 
             try {
-                const response = await fetch('/api/issues');
+                const response = await fetch(`${window.location.origin}/api/issues`);
                 const result = await response.json();
 
                 if (result.success) {
@@ -468,7 +468,7 @@
 
             try {
                 // Start the scoping process
-                const response = await fetch(`/api/scope/${selectedIssueNumber}`);
+                const response = await fetch(`${window.location.origin}/api/scope/${selectedIssueNumber}`);
                 const result = await response.json();
 
                 if (!result.success) {
@@ -531,7 +531,7 @@
                     pollingCount++;
                     const elapsedMinutes = Math.floor((Date.now() - sessionStartTime) / 60000);
                     
-                    const response = await fetch(`/api/scope/${issueNumber}/status/${sessionId}`);
+                    const response = await fetch(`${window.location.origin}/api/scope/${issueNumber}/status/${sessionId}`);
                     const result = await response.json();
 
                     if (!result.success) {
@@ -598,7 +598,7 @@
                     pollingCount++;
                     const elapsedMinutes = Math.floor((Date.now() - sessionStartTime) / 60000);
                     
-                    const response = await fetch(`/api/complete/${issueNumber}/status/${sessionId}`);
+                    const response = await fetch(`${window.location.origin}/api/complete/${issueNumber}/status/${sessionId}`);
                     const result = await response.json();
 
                     if (!result.success) {
@@ -815,7 +815,7 @@
             `;
 
             try {
-                const response = await fetch(`/api/complete/${selectedIssueNumber}`);
+                const response = await fetch(`${window.location.origin}/api/complete/${selectedIssueNumber}`);
                 const result = await response.json();
 
                 if (!result.success) {
@@ -993,7 +993,7 @@
             }
 
             try {
-                const endpoint = type === 'scope' ? `/api/scope/${issueNumber}/status/${sessionId}` : `/api/complete/${issueNumber}/status/${sessionId}`;
+                const endpoint = type === 'scope' ? `${window.location.origin}/api/scope/${issueNumber}/status/${sessionId}` : `${window.location.origin}/api/complete/${issueNumber}/status/${sessionId}`;
                 const response = await fetch(endpoint);
                 const result = await response.json();
                 
@@ -1050,7 +1050,7 @@
             showManagementStatus('Clearing cache...', 'info');
             
             try {
-                const response = await fetch('/api/cache/clear', {
+                const response = await fetch(`${window.location.origin}/api/cache/clear`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1086,7 +1086,7 @@
             const issueNumbers = [123, 124, 125, 126, 127];
             
             try {
-                const response = await fetch('/api/cleanup/comments', {
+                const response = await fetch(`${window.location.origin}/api/cleanup/comments`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

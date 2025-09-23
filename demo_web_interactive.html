@@ -953,11 +953,10 @@
                         
                         if (result.result) {
                             createdPRUrl = result.result.pull_request_url;
-                            const completeResult = {
-                                ...result.result,
-                                session_url: result.session_url
-                            };
-                            displayPRCreationResult(issueNumber, completeResult, result);
+                            // Debug: Log the actual result structure
+                            console.log('PR Creation Result:', result);
+                            console.log('Result.result:', result.result);
+                            displayPRCreationResult(issueNumber, result.result, result);
                         }
                         return;
                     }
@@ -989,11 +988,8 @@
                     
                     if (result.success && result.status && ['completed', 'stopped', 'blocked'].includes(result.status)) {
                         if (result.result) {
-                            const completeResult = {
-                                ...result.result,
-                                session_url: result.session_url
-                            };
-                            displaySummaryResult(issueNumber, completeResult, result);
+                            // Session URL is already in result.result for completed sessions
+                            displaySummaryResult(issueNumber, result.result, result);
                         }
                         return;
                     }

@@ -420,6 +420,8 @@ def scope_issue(issue_number):
 Please analyze this GitHub issue and provide a structured assessment:
 
 Repository: {issue.repository}
+Repository URL: https://github.com/{issue.repository}
+Clone URL: https://github.com/{issue.repository}.git
 Issue #{issue.number}: {issue.title}
 
 Description:
@@ -532,12 +534,19 @@ def get_scope_status(issue_number, session_id):
                             'result': cached_result
                         })
                 
-                # Return session structured output directly
+                # Return session structured output directly, but include session metadata for the UI
+                result_payload = session.structured_output if isinstance(session.structured_output, dict) else {}
+                if not isinstance(result_payload, dict):
+                    result_payload = {}
+                result_payload.update({
+                    'session_id': session.session_id if hasattr(session, 'session_id') else session_id,
+                    'session_url': getattr(session, 'url', None)
+                })
                 return jsonify({
                     'success': True,
                     'status': session.status,
                     'session_url': getattr(session, 'url', None),
-                    'result': session.structured_output
+                    'result': result_payload
                 })
             else:
                 progress_message = "Processing with Devin AI..."
@@ -653,6 +662,8 @@ Previous Analysis:
 Please complete this GitHub issue by implementing the necessary changes:
 
 Repository: {issue.repository}
+Repository URL: https://github.com/{issue.repository}
+Clone URL: https://github.com/{issue.repository}.git
 Issue #{issue.number}: {issue.title}
 
 Description:
@@ -1014,12 +1025,19 @@ def get_completion_status(issue_number, session_id):
                             'result': cached_result
                         })
                 
-                # Return session structured output directly
+                # Return session structured output directly, but include session metadata for the UI
+                result_payload = session.structured_output if isinstance(session.structured_output, dict) else {}
+                if not isinstance(result_payload, dict):
+                    result_payload = {}
+                result_payload.update({
+                    'session_id': session.session_id if hasattr(session, 'session_id') else session_id,
+                    'session_url': getattr(session, 'url', None)
+                })
                 return jsonify({
                     'success': True,
                     'status': session.status,
                     'session_url': getattr(session, 'url', None),
-                    'result': session.structured_output
+                    'result': result_payload
                 })
             else:
                 progress_message = "Processing with Devin AI..."

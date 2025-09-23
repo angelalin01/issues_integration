@@ -848,13 +848,38 @@ def get_pr_creation_status(issue_number, session_id):
             if session.status in ['completed', 'stopped', 'blocked']:
                 pr_url = None
                 if session.structured_output and isinstance(session.structured_output, dict):
-                    pr_url = session.structured_output.get('pull_request_url')
+                    pr_data = session.structured_output.get('pull_request')
+                    if pr_data and isinstance(pr_data, dict):
+                        pr_url = pr_data.get('url')
+                    
+                    if not pr_url:
+                        pr_url = session.structured_output.get('pull_request_url')
+                
+                if not pr_url:
+                    session_data = loop.run_until_complete(devin_client.get_session_status(session_id))
+                    if hasattr(session_data, 'structured_output') and session_data.structured_output:
+                        messages = session_data.structured_output.get('messages', []) if isinstance(session_data.structured_output, dict) else []
+                        for message in messages:
+                            if message.get('type') == 'devin_message':
+                                message_text = message.get('message', '')
+                                try:
+                                    import json
+                                    json_data = json.loads(message_text)
+                                    if isinstance(json_data, dict) and json_data.get('pull_request_url'):
+                                        pr_url = json_data['pull_request_url']
+                                        break
+                                except:
+                                    continue
                 
                 if not pr_url and hasattr(session, 'output') and session.output:
                     import re
                     pr_url_match = re.search(r'PR_URL:\s*(https?://[^\s]+)', session.output)
                     if pr_url_match:
                         pr_url = pr_url_match.group(1)
+                    if not pr_url:
+                        github_pr_match = re.search(r'(https://github\.com/[^/]+/[^/]+/pull/\d+)', session.output)
+                        if github_pr_match:
+                            pr_url = github_pr_match.group(1)
                 
                 result = {
                     'pull_request_url': pr_url,

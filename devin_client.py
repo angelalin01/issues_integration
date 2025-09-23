@@ -69,17 +69,23 @@ class DevinClient:
                 obj = data if isinstance(data, dict) else {}
                 status_val = obj.get("status_enum") or obj.get("status") or "unknown"
                 structured = obj.get("structured_output") or obj.get("output")
-                if isinstance(structured, str):
+                raw_output = obj.get("output") or obj.get("raw_output") or ""
+                
+                if not structured:
+                    structured = obj
+                elif isinstance(structured, str):
                     try:
                         structured = json.loads(structured)
                     except Exception:
                         structured = {"text": structured}
+                
                 return DevinSession(
                     session_id=session_id,
                     url=obj.get("url", "") or obj.get("session_url", ""),
                     status=status_val,
                     created_at=datetime.now(),
-                    structured_output=structured
+                    structured_output=structured,
+                    output=raw_output
                 )
     
     async def wait_for_completion(self, session_id: str, max_wait_time: int = 1800) -> DevinSession:
@@ -173,8 +179,7 @@ Previous Analysis:
 - Action Plan: {', '.join(scope_result.action_plan)}
 """
         
-        implementation_prompt = f"""Please complete this GitHub issue by implementing the necessary changes and opening a PR. 
-At the end, output ONLY the PR URL in this exact format: PR_URL: [url]
+        implementation_prompt = f"""Please complete this GitHub issue by implementing the necessary changes and opening a PR.
 
 Repository: {issue.repository}
 Issue #{issue.number}: {issue.title}
@@ -191,10 +196,16 @@ Steps:
 1. Clone the repo if needed
 2. Implement the fix
 3. Create a pull request
-4. Output the PR URL in the exact format: PR_URL: [url]
+4. Return the result as JSON
 
-⚠️ Important: Do not output JSON or natural language explanations of the changes. 
-Just complete the implementation, open the PR, and output the PR URL in the specified format."""
+⚠️ Important: Return your response as JSON only, using this exact schema:
+{{
+  "pull_request_url": "https://github.com/...",
+  "status": "completed",
+  "summary": "Brief description of changes made"
+}}
+
+Do not include any natural language explanations outside the JSON."""
         
         return await self.create_session(implementation_prompt)
 

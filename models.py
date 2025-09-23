@@ -60,3 +60,4 @@ class DevinSession(BaseModel):
     status: str
     created_at: datetime
     structured_output: Optional[Dict[str, Any]] = None
+    output: Optional[str] = None

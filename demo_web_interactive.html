@@ -223,8 +223,9 @@
             <button class="btn" onclick="configure()">Configure & Start Demo</button>
             <div id="config-status"></div>
         </div>
+    </div>
 
-        <div id="demo-content" style="display: none;">
+    <div id="demo-content" style="display: none;">
             <div class="demo-controls">
                 <button class="btn" id="list-btn" onclick="listIssues()">List Issues</button>
                 
@@ -236,19 +237,21 @@
                 </div>
                 
                 <button class="btn" id="scope-btn" onclick="scopeIssue()" disabled>Scope Issue</button>
-                <button class="btn" id="complete-btn" onclick="completeIssue()" disabled>Complete Issue</button>
+                <button class="btn" id="create-pr-btn" onclick="createPR()" disabled>Create PR</button>
+                <button class="btn" id="generate-summary-btn" onclick="generateSummary()" disabled>Generate Summary</button>
                 <button class="btn" onclick="resetDemo()">Reset</button>
             </div>
             
             <div class="demo-controls" style="margin-top: 10px;">
                 <button class="btn" onclick="clearCache()" style="background-color: #f85149;">Clear Cache</button>
                 <button class="btn" onclick="cleanupComments()" style="background-color: #da3633; margin-left: 10px;">Cleanup Comments</button>
+                <button class="btn" onclick="checkSessionStatus()" style="background-color: #0969da; margin-left: 10px;">Check Session Status</button>
+                <button class="btn" onclick="showStoredSessions()" style="background-color: #6f42c1; margin-left: 10px;">View Stored Sessions</button>
                 <div id="management-status" style="margin-top: 10px;"></div>
             </div>
 
             <div id="demo-steps"></div>
         </div>
-    </div>
 
     <script>
         let currentConfig = {
@@ -256,23 +259,34 @@
             repo_name: null
         };
         let selectedIssueNumber = null;
+        let sessionStartTime = null;
+        let pollingCount = 0;
+        let prCreationInProgress = false;
+        let prCreationCompleted = false;
+        let createdPRUrl = null;
 
         function updateSelectedIssue() {
             const select = document.getElementById('selected-issue');
             selectedIssueNumber = select.value ? parseInt(select.value) : null;
             
             const scopeBtn = document.getElementById('scope-btn');
-            const completeBtn = document.getElementById('complete-btn');
+            const createPRBtn = document.getElementById('create-pr-btn');
+            const generateSummaryBtn = document.getElementById('generate-summary-btn');
             
             if (selectedIssueNumber) {
                 scopeBtn.textContent = `Scope Issue #${selectedIssueNumber}`;
                 scopeBtn.disabled = false;
-                completeBtn.textContent = `Complete Issue #${selectedIssueNumber}`;
+                createPRBtn.textContent = `Create PR #${selectedIssueNumber}`;
+                createPRBtn.disabled = false;
+                generateSummaryBtn.textContent = `Generate Summary #${selectedIssueNumber}`;
+                generateSummaryBtn.disabled = true;
             } else {
                 scopeBtn.textContent = 'Scope Issue';
                 scopeBtn.disabled = true;
-                completeBtn.textContent = 'Complete Issue';
-                completeBtn.disabled = true;
+                createPRBtn.textContent = 'Create PR';
+                createPRBtn.disabled = true;
+                generateSummaryBtn.textContent = 'Generate Summary';
+                generateSummaryBtn.disabled = true;
             }
         }
 
@@ -288,7 +302,7 @@
             }
 
             try {
-                const response = await fetch('/api/config', {
+                const response = await fetch(`${window.location.origin}/api/config`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -331,6 +345,8 @@
             } catch (error) {
                 showError('Configuration failed: ' + error.message);
             }
+        }
+
         async function testDevinAuth() {
             const stepsDiv = document.getElementById('demo-steps');
             stepsDiv.innerHTML = `
@@ -340,7 +356,7 @@
                 </div>
             `;
             try {
-                const resp = await fetch('/api/test-devin-auth');
+                const resp = await fetch(`${window.location.origin}/api/test-devin-auth`);
                 const result = await resp.json();
                 if (result.success) {
                     stepsDiv.innerHTML = `
@@ -375,9 +391,7 @@
                 showError(e.message);
             }
         }
-
-        }
-
+        
         async function listIssues() {
             const stepsDiv = document.getElementById('demo-steps');
             stepsDiv.innerHTML = `
@@ -388,7 +402,7 @@
             `;
 
             try {
-                const response = await fetch('/api/issues');
+                const response = await fetch(`${window.location.origin}/api/issues`);
                 const result = await response.json();
 
                 if (result.success) {
@@ -464,7 +478,7 @@
 
             try {
                 // Start the scoping process
-                const response = await fetch(`/api/scope/${selectedIssueNumber}`);
+                const response = await fetch(`${window.location.origin}/api/scope/${selectedIssueNumber}`);
                 const result = await response.json();
 
                 if (!result.success) {
@@ -496,10 +510,16 @@
                     
                     // Show session URL immediately for live mode
                     const progressDiv = document.getElementById(`progress-${selectedIssueNumber}`);
-                    progressDiv.innerHTML = `
-                        <p class="loading">Starting analysis with Devin AI...</p>
-                        <p><strong>Live Devin Session:</strong> <a href="${sessionUrl}" target="_blank" class="url">${sessionUrl}</a></p>
-                    `;
+                    console.log('Debug: sessionUrl =', sessionUrl, 'sessionId =', sessionId);
+                    console.log('Debug: progressDiv =', progressDiv);
+                    if (progressDiv && sessionUrl) {
+                        progressDiv.innerHTML = `
+                            <p class="loading">Starting analysis with Devin AI...</p>
+                            <p><strong>Live Devin Session:</strong> <a href="${sessionUrl}" target="_blank" class="url">${sessionUrl}</a></p>
+                        `;
+                    } else {
+                        console.error('Debug: Missing progressDiv or sessionUrl', {progressDiv, sessionUrl});
+                    }
                     
                     // Start polling for live mode
                     pollScopeStatus(selectedIssueNumber, sessionId);
@@ -512,10 +532,22 @@
         async function pollScopeStatus(issueNumber, sessionId) {
             const progressDiv = document.getElementById(`progress-${issueNumber}`);
             const stepDiv = document.getElementById(`scope-step-${issueNumber}`);
+            if (!progressDiv || !stepDiv) {
+                return;
+            }
+            
+            sessionStartTime = Date.now();
+            pollingCount = 0;
+            
+            // Store session info in localStorage
+            storeSessionInfo(issueNumber, sessionId, 'scope');
             
             const poll = async () => {
                 try {
-                    const response = await fetch(`/api/scope/${issueNumber}/status/${sessionId}`);
+                    pollingCount++;
+                    const elapsedMinutes = Math.floor((Date.now() - sessionStartTime) / 60000);
+                    
+                    const response = await fetch(`${window.location.origin}/api/scope/${issueNumber}/status/${sessionId}`);
                     const result = await response.json();
 
                     if (!result.success) {
@@ -523,20 +555,33 @@
                         return;
                     }
 
-                    // Update progress message while preserving session URL
+                    // Update progress message with enhanced UI
                     if (result.progress_message) {
                         const sessionUrlHtml = progressDiv.innerHTML.includes('Live Devin Session:') ? 
                             progressDiv.innerHTML.split('<p><strong>Live Devin Session:</strong>')[1] : '';
+                        
+                        let timeIndicator = '';
+                        if (elapsedMinutes >= 10) {
+                            timeIndicator = `<div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 8px; margin: 5px 0; border-radius: 4px;">
+                                <strong>⏱️ Extended Session:</strong> Running for ${elapsedMinutes} minutes. 
+                                <a href="#" onclick="checkSessionStatus(${issueNumber}, '${sessionId}', 'scope')" style="color: #0969da;">Check status manually</a>
+                            </div>`;
+                        }
+                        
                         progressDiv.innerHTML = `
                             <p class="loading">${result.progress_message}</p>
+                            ${timeIndicator}
                             ${sessionUrlHtml ? `<p><strong>Live Devin Session:</strong> ${sessionUrlHtml}` : ''}
                         `;
                     }
 
                     if ((result.status === 'completed' || result.status === 'blocked' || result.status === 'suspended') && result.result) {
+                        // Clear stored session on completion
+                        clearStoredSession(issueNumber, 'scope');
                         // Display final result
                         displayScopeResult(issueNumber, result.result, {demo_mode: false, cached: false});
                     } else if (result.status === 'failed' || result.status === 'stopped') {
+                        clearStoredSession(issueNumber, 'scope');
                         showError(`Scoping failed with status: ${result.status}`);
                     } else {
                         // Continue polling
@@ -554,10 +599,22 @@
         async function pollCompletionStatus(issueNumber, sessionId) {
             const progressDiv = document.getElementById(`complete-progress-${issueNumber}`);
             const stepDiv = document.getElementById(`complete-step-${issueNumber}`);
+            if (!progressDiv || !stepDiv) {
+                return;
+            }
+            
+            sessionStartTime = Date.now();
+            pollingCount = 0;
+            
+            // Store session info in localStorage
+            storeSessionInfo(issueNumber, sessionId, 'completion');
             
             const poll = async () => {
                 try {
-                    const response = await fetch(`/api/complete/${issueNumber}/status/${sessionId}`);
+                    pollingCount++;
+                    const elapsedMinutes = Math.floor((Date.now() - sessionStartTime) / 60000);
+                    
+                    const response = await fetch(`${window.location.origin}/api/complete/${issueNumber}/status/${sessionId}`);
                     const result = await response.json();
 
                     if (!result.success) {
@@ -565,20 +622,46 @@
                         return;
                     }
 
-                    // Update progress message while preserving session URL
+                    // Update progress message with enhanced UI
                     if (result.progress_message) {
                         const sessionUrlHtml = progressDiv.innerHTML.includes('Live Devin Session:') ? 
                             progressDiv.innerHTML.split('<p><strong>Live Devin Session:</strong>')[1] : '';
+                        
+                        let actionPlanHtml = '';
+                        if (result.action_plan_preview && result.action_plan_preview.length > 0) {
+                            actionPlanHtml = `
+                                <div style="margin-top: 10px;">
+                                    <strong>Current Action Plan:</strong>
+                                    <ol style="margin: 5px 0; padding-left: 20px;">
+                                        ${result.action_plan_preview.map((step, i) => `<li>${step}</li>`).join('')}
+                                        ${result.action_plan_preview.length >= 3 ? '<li><em>...and more steps</em></li>' : ''}
+                                    </ol>
+                                </div>`;
+                        }
+                        
+                        let timeIndicator = '';
+                        if (elapsedMinutes >= 15) {
+                            timeIndicator = `<div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 8px; margin: 5px 0; border-radius: 4px;">
+                                <strong>⏱️ Extended Session:</strong> Running for ${elapsedMinutes} minutes. Complex issues may take 30+ minutes.
+                                <a href="#" onclick="checkSessionStatus(${issueNumber}, '${sessionId}', 'completion')" style="color: #0969da;">Check status manually</a>
+                            </div>`;
+                        }
+                        
                         progressDiv.innerHTML = `
                             <p class="loading">${result.progress_message}</p>
+                            ${actionPlanHtml}
+                            ${timeIndicator}
                             ${sessionUrlHtml ? `<p><strong>Live Devin Session:</strong> ${sessionUrlHtml}` : ''}
                         `;
                     }
 
                     if ((result.status === 'completed' || result.status === 'blocked' || result.status === 'suspended') && result.result) {
+                        // Clear stored session on completion
+                        clearStoredSession(issueNumber, 'completion');
                         // Display final result
                         displayCompletionResult(issueNumber, result.result, {demo_mode: false, cached: false});
                     } else if (result.status === 'failed' || result.status === 'stopped') {
+                        clearStoredSession(issueNumber, 'completion');
                         showError(`Completion failed with status: ${result.status}`);
                     } else {
                         // Continue polling
@@ -624,17 +707,17 @@
                     
                     <h4>Required Skills:</h4>
                     <ul class="list">
-                        ${scope.required_skills.map(skill => `<li>${skill}</li>`).join('')}
+                        ${(scope.required_skills || []).map(skill => `<li>${skill}</li>`).join('')}
                     </ul>
                     
                     <h4>Action Plan:</h4>
                     <ol class="list">
-                        ${scope.action_plan.map(step => `<li>${step}</li>`).join('')}
+                        ${(scope.action_plan || []).map(step => `<li>${step}</li>`).join('')}
                     </ol>
                     
                     <h4>Risks:</h4>
                     <ul class="list">
-                        ${scope.risks.map(risk => `<li>${risk}</li>`).join('')}
+                        ${(scope.risks || []).map(risk => `<li>${risk}</li>`).join('')}
                     </ul>
                     
                     <p><strong>Devin Session:</strong> <a href="${scope.session_url}" class="url">${scope.session_url}</a></p>
@@ -645,7 +728,7 @@
                 <p><strong>✅ Issue scoped with ${((scope.confidence_score || 0.5) * 100).toFixed(0)}% confidence</strong></p>
             `;
 
-            document.getElementById('complete-btn').disabled = false;
+            document.getElementById('create-pr-btn').disabled = false;
         }
 
         function displayCompletionResult(issueNumber, completion, result) {
@@ -683,22 +766,22 @@
                     
                     <h4>Required Skills:</h4>
                     <ul class="list">
-                        ${completion.required_skills.map(skill => `<li>${skill}</li>`).join('')}
+                        ${(completion.required_skills || []).map(skill => `<li>${skill}</li>`).join('')}
                     </ul>
                     
                     <h4>Implementation Steps:</h4>
                     <ol class="list">
-                        ${completion.action_plan.map(step => `<li>${step}</li>`).join('')}
+                        ${(completion.action_plan || []).map(step => `<li>${step}</li>`).join('')}
                     </ol>
                     
                     <h4>Files Modified:</h4>
                     <ul class="list">
-                        ${completion.files_modified.map(file => `<li>${file}</li>`).join('')}
+                        ${(completion.files_modified || []).map(file => `<li>${file}</li>`).join('')}
                     </ul>
                     
                     <h4>Risks:</h4>
                     <ul class="list">
-                        ${completion.risks.map(risk => `<li>${risk}</li>`).join('')}
+                        ${(completion.risks || []).map(risk => `<li>${risk}</li>`).join('')}
                     </ul>
                     
                     <p><strong>Pull Request:</strong> <a href="${completion.pull_request_url || '#'}" class="url">${completion.pull_request_url || 'None created'}</a></p>
@@ -732,131 +815,281 @@
             `;
         }
 
-        async function completeIssue() {
+        async function createPR() {
             if (!selectedIssueNumber) {
                 showError('Please select an issue first');
                 return;
             }
             
+            if (prCreationInProgress) {
+                showError('PR creation is already in progress');
+                return;
+            }
+            
+            prCreationInProgress = true;
+            document.getElementById('create-pr-btn').disabled = true;
+            
             const stepsDiv = document.getElementById('demo-steps');
             stepsDiv.innerHTML += `
-                <div class="step" id="complete-step-${selectedIssueNumber}">
-                    <div class="step-title">Step 3: Completing Issue #${selectedIssueNumber}</div>
-                    <p class="loading">Starting work with Devin AI...</p>
-                    <div id="complete-progress-${selectedIssueNumber}"></div>
+                <div class="step" id="create-pr-step-${selectedIssueNumber}">
+                    <div class="step-title">Step 3a: Creating PR for Issue #${selectedIssueNumber}</div>
+                    <p class="loading">Starting PR creation with Devin AI...</p>
+                    <div id="create-pr-progress-${selectedIssueNumber}"></div>
                 </div>
             `;
 
             try {
-                const response = await fetch(`/api/complete/${selectedIssueNumber}`);
+                const response = await fetch(`${window.location.origin}/api/complete/${selectedIssueNumber}/create-pr`);
                 const result = await response.json();
 
                 if (!result.success) {
-                    showError('Failed to start completion: ' + result.error);
+                    showError('Failed to start PR creation: ' + result.error);
+                    prCreationInProgress = false;
+                    document.getElementById('create-pr-btn').disabled = false;
                     return;
                 }
 
-                if (result.demo_mode) {
-                    // Handle demo mode (existing logic)
-                    if (result.success) {
-                    const completion = result.result;
-                    const lastStep = stepsDiv.lastElementChild;
-                    
-                    let statusBadges = '';
-                    if (result.cached) statusBadges += '<span style="background: #f85149; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">CACHED</span>';
-                    if (completion.comment_posted) {
-                        if (completion.comment_posted.success) {
-                            statusBadges += '<span style="background: #238636; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">COMMENTED</span>';
-                        } else {
-                            statusBadges += '<span style="background: #da3633; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">COMMENT FAILED</span>';
-                        }
-                    }
-                    
-                    lastStep.innerHTML = `
-                        <div class="step-title">Step 3: Completing Issue #${selectedIssueNumber}${statusBadges}</div>
-                        <p>
-                            <span class="status-indicator ${result.demo_mode ? 'status-demo' : 'status-live'}">
-                                ${result.demo_mode ? 'DEMO DATA' : 'LIVE DEVIN API'}
-                            </span>
-                            ${result.cached ? '<span class="status-indicator" style="background: #f85149; margin-left: 8px;">FROM CACHE</span>' : ''}
-                        </p>
-                        
-                        <div class="panel success">
-                            <h3>Issue #${selectedIssueNumber} Completion Result</h3>
-                            
-                            <p><strong>Status:</strong> <span class="status-success">${completion.status}</span></p>
-                            <p><strong>Success:</strong> <span class="status-success">${completion.success}</span></p>
-                            
-                            <h4>Summary:</h4>
-                            <p>${completion.completion_summary}</p>
-                            
-                            <h4>Files Modified:</h4>
-                            <ul class="list">
-                                ${completion.files_modified.map(file => `<li>${file}</li>`).join('')}
-                            </ul>
-                            
-                            <p><strong>Pull Request:</strong> <a href="${completion.pull_request_url || '#'}" class="url">${completion.pull_request_url || 'None created'}</a></p>
-                            <p><strong>Devin Session:</strong> <a href="${completion.session_url}" class="url">${completion.session_url}</a></p>
-                            ${completion.comment_posted && completion.comment_posted.success ? 
-                                `<p><strong>GitHub Comment:</strong> <a href="${completion.comment_posted.comment_url}" target="_blank" class="url">View Comment</a></p>` : ''}
-                        </div>
-                        
-                        <p><strong>✅ Issue completed successfully</strong></p>
-                    `;
-
-                    // Show summary
-                    stepsDiv.innerHTML += `
-                        <div class="summary">
-                            <h2><span class="emoji">✅</span> Demo Complete!</h2>
-                            <p>The GitHub Issues Integration successfully:</p>
-                            <ul class="list">
-                                <li>Listed issues from ${currentConfig.repo_name}</li>
-                                <li>Analyzed issue #${selectedIssueNumber} with ${result.demo_mode ? 'demo' : 'live'} data</li>
-                                <li>Completed the issue ${result.demo_mode ? 'simulation' : 'using live Devin API'}</li>
-                            </ul>
-                            
-                            <h3>Mode Used:</h3>
-                            <p>
-                                <span class="status-indicator ${result.demo_mode ? 'status-demo' : 'status-live'}">
-                                    ${result.demo_mode ? 'DEMO MODE - Sample Data' : 'LIVE MODE - Real APIs'}
-                                </span>
-                            </p>
-                        </div>
-                    `;
-                    } else {
-                        showError('Failed to complete issue: ' + result.error);
-                    }
-                } else {
-                    // Handle both fresh sessions and cached results for completion
-                    let sessionId, sessionUrl;
-                    
-                    if (result.cached && result.result) {
-                        // Cached result - extract from nested result object
-                        sessionId = result.result.session_id;
-                        sessionUrl = result.result.session_url;
-                        
-                        // If cached, display results immediately
-                        displayCompletionResult(selectedIssueNumber, result.result, result);
-                        return;
-                    } else {
-                        // Fresh session - extract from top level
-                        sessionId = result.session_id;
-                        sessionUrl = result.session_url;
-                    }
-                    
-                    // Show session URL immediately for live mode
-                    const progressDiv = document.getElementById(`complete-progress-${selectedIssueNumber}`);
+                // Show session URL immediately for live mode
+                if (result.session_url) {
+                    const progressDiv = document.getElementById(`create-pr-progress-${selectedIssueNumber}`);
                     progressDiv.innerHTML = `
-                        <p class="loading">Starting work with Devin AI...</p>
-                        <p><strong>Live Devin Session:</strong> <a href="${sessionUrl}" target="_blank" class="url">${sessionUrl}</a></p>
+                        <p><strong>Live Devin Session:</strong> <a href="${result.session_url}" target="_blank" class="url">${result.session_url}</a></p>
                     `;
                     
-                    // Start polling for completion status
-                    pollCompletionStatus(selectedIssueNumber, sessionId);
+                    // Start polling for PR creation status
+                    pollPRCreationStatus(selectedIssueNumber, result.session_id);
+                } else if (result.demo_mode) {
+                    // Handle demo mode
+                    displayPRCreationResult(selectedIssueNumber, result.result, result);
+                    prCreationInProgress = false;
+                    prCreationCompleted = true;
+                    document.getElementById('generate-summary-btn').disabled = false;
                 }
             } catch (error) {
-                showError('Failed to complete issue: ' + error.message);
+                showError('Failed to create PR: ' + error.message);
+                prCreationInProgress = false;
+                document.getElementById('create-pr-btn').disabled = false;
             }
+        }
+
+        async function generateSummary() {
+            if (!selectedIssueNumber) {
+                showError('Please select an issue first');
+                return;
+            }
+            
+            if (prCreationInProgress) {
+                showError('PR is still being created. Please wait for PR creation to complete before generating summary.');
+                return;
+            }
+            
+            if (!prCreationCompleted) {
+                showError('Please create a PR first before generating the summary.');
+                return;
+            }
+            
+            document.getElementById('generate-summary-btn').disabled = true;
+            
+            const stepsDiv = document.getElementById('demo-steps');
+            stepsDiv.innerHTML += `
+                <div class="step" id="generate-summary-step-${selectedIssueNumber}">
+                    <div class="step-title">Step 3b: Generating Summary for Issue #${selectedIssueNumber}</div>
+                    <p class="loading">Generating JSON summary with Devin AI...</p>
+                    <div id="generate-summary-progress-${selectedIssueNumber}"></div>
+                </div>
+            `;
+
+            try {
+                const url = `${window.location.origin}/api/complete/${selectedIssueNumber}/generate-summary`;
+                const requestBody = createdPRUrl ? { pr_url: createdPRUrl } : {};
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                const result = await response.json();
+
+                if (!result.success) {
+                    showError('Failed to generate summary: ' + result.error);
+                    document.getElementById('generate-summary-btn').disabled = false;
+                    return;
+                }
+
+                // Show session URL immediately for live mode
+                if (result.session_url) {
+                    const progressDiv = document.getElementById(`generate-summary-progress-${selectedIssueNumber}`);
+                    progressDiv.innerHTML = `
+                        <p><strong>Live Devin Session:</strong> <a href="${result.session_url}" target="_blank" class="url">${result.session_url}</a></p>
+                    `;
+                    
+                    // Start polling for summary generation status
+                    pollSummaryGenerationStatus(selectedIssueNumber, result.session_id);
+                } else if (result.demo_mode) {
+                    // Handle demo mode
+                    displaySummaryResult(selectedIssueNumber, result.result, result);
+                }
+            } catch (error) {
+                showError('Failed to generate summary: ' + error.message);
+                document.getElementById('generate-summary-btn').disabled = false;
+            }
+        }
+
+        async function pollPRCreationStatus(issueNumber, sessionId) {
+            const maxPolls = 60;
+            let pollCount = 0;
+            
+            const poll = async () => {
+                try {
+                    const response = await fetch(`${window.location.origin}/api/complete/${issueNumber}/create-pr/status/${sessionId}`);
+                    const result = await response.json();
+                    
+                    if (result.success && result.status && ['completed', 'stopped', 'blocked'].includes(result.status)) {
+                        prCreationInProgress = false;
+                        prCreationCompleted = true;
+                        document.getElementById('generate-summary-btn').disabled = false;
+                        
+                        if (result.result) {
+                            createdPRUrl = result.result.pull_request_url;
+                            // The session_url is already in result.result from the backend
+                            displayPRCreationResult(issueNumber, result.result, result);
+                        }
+                        return;
+                    }
+                    
+                    pollCount++;
+                    if (pollCount < maxPolls) {
+                        setTimeout(poll, 30000);
+                    } else {
+                        showError('PR creation timed out. Please check the session URL for progress.');
+                        prCreationInProgress = false;
+                    }
+                } catch (error) {
+                    showError('Error polling PR creation status: ' + error.message);
+                    prCreationInProgress = false;
+                }
+            };
+            
+            poll();
+        }
+
+        async function pollSummaryGenerationStatus(issueNumber, sessionId) {
+            const maxPolls = 20;
+            let pollCount = 0;
+            
+            const poll = async () => {
+                try {
+                    const response = await fetch(`${window.location.origin}/api/complete/${issueNumber}/generate-summary/status/${sessionId}`);
+                    const result = await response.json();
+                    
+                    if (result.success && result.status && ['completed', 'stopped', 'blocked'].includes(result.status)) {
+                        if (result.result) {
+                            // Pass the complete result object that includes session_url, not just result.result
+                            const completeResult = {
+                                ...result.result,
+                                session_url: result.session_url
+                            };
+                            displaySummaryResult(issueNumber, completeResult, result);
+                        }
+                        return;
+                    }
+                    
+                    pollCount++;
+                    if (pollCount < maxPolls) {
+                        setTimeout(poll, 30000);
+                    } else {
+                        showError('Summary generation timed out. Please check the session URL for progress.');
+                    }
+                } catch (error) {
+                    showError('Error polling summary generation status: ' + error.message);
+                }
+            };
+            
+            poll();
+        }
+
+        function displayPRCreationResult(issueNumber, result, response) {
+            const stepDiv = document.getElementById(`create-pr-step-${issueNumber}`);
+            stepDiv.innerHTML = `
+                <div class="step-title">Step 3a: PR Created for Issue #${issueNumber}</div>
+                <div class="panel success">
+                    <h3>PR Creation Result</h3>
+                    <p><strong>Status:</strong> <span class="status-success">${result.status || 'PR Created'}</span></p>
+                    <p><strong>Pull Request:</strong> <a href="${result.pull_request_url || '#'}" class="url">${result.pull_request_url || 'URL not available'}</a></p>
+                    <p><strong>Summary:</strong> ${result.summary || 'Pull request created successfully'}</p>
+                    <p><strong>Implementation Session:</strong> <a href="${result.session_url || '#'}" class="url">${result.session_url || 'Session URL not available'}</a></p>
+                </div>
+                <p><strong>✅ PR creation completed. You can now generate the summary.</strong></p>
+            `;
+        }
+
+        function displaySummaryResult(issueNumber, result, response) {
+            const stepDiv = document.getElementById(`generate-summary-step-${issueNumber}`);
+            
+            let statusBadges = '';
+            if (response.cached) statusBadges += '<span style="background: #f85149; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 8px;">CACHED</span>';
+            
+            stepDiv.innerHTML = `
+                <div class="step-title">Step 3b: Summary Generated for Issue #${issueNumber}${statusBadges}</div>
+                <div class="panel success">
+                    <h3>Issue #${issueNumber} Completion Summary</h3>
+                    
+                    <p><strong>Confidence Score:</strong> <span class="confidence-high">${(result.confidence_score || 0.5).toFixed(2)} (${result.confidence_level || 'medium'})</span></p>
+                    <p><strong>Status:</strong> <span class="status-${result.success ? 'success' : 'error'}">${result.status || 'completed'}</span></p>
+                    <p><strong>Implementation Quality:</strong> ${result.implementation_quality || 'High quality implementation'}</p>
+                    <p><strong>Test Coverage:</strong> ${result.test_coverage || 'Appropriate testing coverage'}</p>
+                    
+                    <h4>Summary:</h4>
+                    <p>${result.completion_summary || 'Summary generated successfully'}</p>
+                    
+                    <h4>Required Skills:</h4>
+                    <ul class="list">
+                        ${(result.required_skills || ['Software development', 'Code implementation']).map(skill => `<li>${skill}</li>`).join('')}
+                    </ul>
+                    
+                    <h4>Implementation Steps:</h4>
+                    <ol class="list">
+                        ${(result.action_plan || ['Implementation completed as planned']).map(step => `<li>${step}</li>`).join('')}
+                    </ol>
+                    
+                    <h4>Files Modified:</h4>
+                    <ul class="list">
+                        ${(result.files_modified || ['Files modified as per implementation']).map(file => `<li>${file}</li>`).join('')}
+                    </ul>
+                    
+                    <h4>Risks:</h4>
+                    <ul class="list">
+                        ${(result.risks || ['Standard implementation risks']).map(risk => `<li>${risk}</li>`).join('')}
+                    </ul>
+                    
+                    <p><strong>Summary Session:</strong> <a href="${result.session_url || '#'}" class="url">${result.session_url || 'Session URL not available'}</a></p>
+                </div>
+                
+                <p><strong>✅ Issue completed with ${((result.confidence_score || 0.5) * 100).toFixed(0)}% confidence</strong></p>
+            `;
+
+            // Show final summary
+            const stepsDiv = document.getElementById('demo-steps');
+            stepsDiv.innerHTML += `
+                <div class="summary">
+                    <h2><span class="emoji">✅</span> Demo Complete!</h2>
+                    <p>The GitHub Issues Integration successfully:</p>
+                    <ul class="list">
+                        <li>Listed issues from ${currentConfig.repo_name}</li>
+                        <li>Analyzed issue #${issueNumber} with ${response.demo_mode ? 'demo' : 'live'} data</li>
+                        <li>Created PR and generated completion summary ${response.demo_mode ? 'simulation' : 'using live Devin API'}</li>
+                    </ul>
+                    
+                    <h3>Mode Used:</h3>
+                    <p>
+                        <span class="status-indicator ${response.demo_mode ? 'status-demo' : 'status-live'}">
+                            ${response.demo_mode ? 'DEMO MODE - Sample Data' : 'LIVE MODE - Real APIs'}
+                        </span>
+                    </p>
+                </div>
+            `;
         }
 
         function resetDemo() {
@@ -865,9 +1098,14 @@
             document.getElementById('selected-issue').innerHTML = '<option value="">-- Select an Issue --</option>';
             selectedIssueNumber = null;
             document.getElementById('scope-btn').disabled = true;
-            document.getElementById('complete-btn').disabled = true;
+            document.getElementById('create-pr-btn').disabled = true;
+            document.getElementById('generate-summary-btn').disabled = true;
             document.getElementById('scope-btn').textContent = 'Scope Issue';
-            document.getElementById('complete-btn').textContent = 'Complete Issue';
+            document.getElementById('create-pr-btn').textContent = 'Create PR';
+            document.getElementById('generate-summary-btn').textContent = 'Generate Summary';
+            prCreationInProgress = false;
+            prCreationCompleted = false;
+            createdPRUrl = null;
         }
 
         function showError(message) {
@@ -883,6 +1121,92 @@
                 showErrorPopup('Devin API key is required for scoping and completing issues. Please configure a valid Devin API key to use these features.');
             }
         }
+
+        // Session persistence functions
+        function storeSessionInfo(issueNumber, sessionId, type) {
+            const sessionKey = `devin_session_${issueNumber}_${type}`;
+            const sessionData = {
+                sessionId: sessionId,
+                issueNumber: issueNumber,
+                type: type,
+                startTime: Date.now(),
+                repository: currentConfig.repo_name || 'unknown'
+            };
+            localStorage.setItem(sessionKey, JSON.stringify(sessionData));
+            
+            // Also store in a general sessions list
+            const allSessions = JSON.parse(localStorage.getItem('devin_all_sessions') || '[]');
+            allSessions.push(sessionData);
+            localStorage.setItem('devin_all_sessions', JSON.stringify(allSessions));
+        }
+
+        function clearStoredSession(issueNumber, type) {
+            const sessionKey = `devin_session_${issueNumber}_${type}`;
+            localStorage.removeItem(sessionKey);
+            
+            // Remove from general sessions list
+            const allSessions = JSON.parse(localStorage.getItem('devin_all_sessions') || '[]');
+            const filteredSessions = allSessions.filter(s => !(s.issueNumber === issueNumber && s.type === type));
+            localStorage.setItem('devin_all_sessions', JSON.stringify(filteredSessions));
+        }
+
+        function getStoredSession(issueNumber, type) {
+            const sessionKey = `devin_session_${issueNumber}_${type}`;
+            const sessionData = localStorage.getItem(sessionKey);
+            return sessionData ? JSON.parse(sessionData) : null;
+        }
+
+        async function checkSessionStatus(issueNumber = null, sessionId = null, type = null) {
+            if (!issueNumber || !sessionId || !type) {
+                // Show stored sessions if no specific session provided
+                showStoredSessions();
+                return;
+            }
+
+            try {
+                const endpoint = type === 'scope' ? `${window.location.origin}/api/scope/${issueNumber}/status/${sessionId}` : `${window.location.origin}/api/complete/${issueNumber}/status/${sessionId}`;
+                const response = await fetch(endpoint);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const elapsedMinutes = Math.floor((Date.now() - (getStoredSession(issueNumber, type)?.startTime || Date.now())) / 60000);
+                    
+                    let statusMessage = `Session Status for Issue #${issueNumber} (${type}):\n`;
+                    statusMessage += `Status: ${result.status}\n`;
+                    statusMessage += `Running for: ${elapsedMinutes} minutes\n`;
+                    if (result.progress_message) {
+                        statusMessage += `Progress: ${result.progress_message}\n`;
+                    }
+                    
+                    alert(statusMessage);
+                } else {
+                    showError('Failed to check session status: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                showError('Error checking session status: ' + error.message);
+            }
+        }
+
+        function showStoredSessions() {
+            const allSessions = JSON.parse(localStorage.getItem('devin_all_sessions') || '[]');
+            
+            if (allSessions.length === 0) {
+                alert('No stored sessions found.');
+                return;
+            }
+            
+            let sessionsList = 'Stored Devin Sessions:\n\n';
+            allSessions.forEach((session, index) => {
+                const elapsedMinutes = Math.floor((Date.now() - session.startTime) / 60000);
+                sessionsList += `${index + 1}. Issue #${session.issueNumber} (${session.type})\n`;
+                sessionsList += `   Repository: ${session.repository}\n`;
+                sessionsList += `   Running for: ${elapsedMinutes} minutes\n`;
+                sessionsList += `   Session ID: ${session.sessionId}\n\n`;
+            });
+            
+            sessionsList += 'Use "Check Session Status" button to check specific sessions.';
+            alert(sessionsList);
+        }
         
         function showErrorPopup(message) {
             document.getElementById('errorMessage').textContent = message;
@@ -897,7 +1221,7 @@
             showManagementStatus('Clearing cache...', 'info');
             
             try {
-                const response = await fetch('/api/cache/clear', {
+                const response = await fetch(`${window.location.origin}/api/cache/clear`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -908,7 +1232,16 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showManagementStatus(`Cache cleared: ${result.cleared_files.length} files removed`, 'success');
+                    // Also clear localStorage sessions
+                    localStorage.removeItem('devin_all_sessions');
+                    const keys = Object.keys(localStorage);
+                    keys.forEach(key => {
+                        if (key.startsWith('devin_session_')) {
+                            localStorage.removeItem(key);
+                        }
+                    });
+                    
+                    showManagementStatus(`Cache and stored sessions cleared: ${result.cleared_files.length} files removed`, 'success');
                 } else {
                     showManagementStatus(`Error clearing cache: ${result.error}`, 'error');
                 }
@@ -924,7 +1257,7 @@
             const issueNumbers = [123, 124, 125, 126, 127];
             
             try {
-                const response = await fetch('/api/cleanup/comments', {
+                const response = await fetch(`${window.location.origin}/api/cleanup/comments`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

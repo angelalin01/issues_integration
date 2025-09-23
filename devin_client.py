@@ -162,8 +162,8 @@ Format your response as JSON with these exact field names.
             session_url=session.url
         )
     
-    async def complete_issue(self, issue: GitHubIssue, scope_result: Optional[IssueScopeResult] = None) -> TaskCompletionResult:
-        """Complete an issue using Devin with two-stage approach"""
+    async def create_pr(self, issue: GitHubIssue, scope_result: Optional[IssueScopeResult] = None) -> DevinSession:
+        """Create PR for an issue using Devin (first stage)"""
         action_plan_text = ""
         if scope_result:
             action_plan_text = f"""
@@ -196,10 +196,10 @@ Steps:
 ⚠️ Important: Do not output JSON or natural language explanations of the changes. 
 Just complete the implementation and open the PR."""
         
-        # Create first session for implementation
-        implementation_session = await self.create_session(implementation_prompt)
-        completed_implementation = await self.wait_for_completion(implementation_session.session_id)
-        
+        return await self.create_session(implementation_prompt)
+
+    async def generate_summary(self, issue: GitHubIssue) -> TaskCompletionResult:
+        """Generate JSON summary for an issue (second stage)"""
         summary_prompt = f"""Now, summarize the implementation you just performed for Issue #{issue.number}.  
 
 Respond in JSON only, using this schema:
@@ -273,8 +273,8 @@ Respond in JSON only, using this schema:
             completion_summary=output.get("completion_summary") or output.get("summary") or "No summary available",
             files_modified=output.get("files_modified") or output.get("files") or [],
             pull_request_url=output.get("pull_request_url"),
-            session_id=f"{implementation_session.session_id},{summary_session.session_id}",
-            session_url=f"{implementation_session.url}|{summary_session.url}",
+            session_id=summary_session.session_id,
+            session_url=summary_session.url,
             success=bool(output.get("success", False)),
             confidence_score=confidence_score,
             confidence_level=confidence_level,

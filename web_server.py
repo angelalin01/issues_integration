@@ -677,7 +677,131 @@ Previous Analysis:
 - Action Plan: {', '.join(scope_result.action_plan)}
 """
             
-            completion_result = loop.run_until_complete(devin_client.complete_issue(issue, scope_result))
+            return jsonify({
+                'success': False,
+                'error': 'This endpoint is deprecated. Use /api/complete/{issue_number}/create-pr and /api/complete/{issue_number}/generate-summary instead.'
+            })
+        finally:
+            loop.close()
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/complete/<int:issue_number>/create-pr')
+def create_pr(issue_number):
+    """Create PR for an issue (first stage)"""
+    try:
+        if runtime_config['demo_mode']:
+            # Demo mode - return session info for demo
+            return jsonify({
+                'success': True,
+                'demo_mode': True,
+                'session_id': f'demo_pr_{issue_number}',
+                'session_url': f'https://demo.devin.ai/sessions/demo_pr_{issue_number}'
+            })
+        
+        github_client = get_github_client()
+        devin_client = get_devin_client()
+        
+        if not github_client:
+            return jsonify({'success': False, 'error': 'GitHub token not configured or invalid'})
+        
+        if not devin_client:
+            return jsonify({'success': False, 'error': 'Devin API key not available - PR creation requires a valid Devin API key'})
+        
+        issue = github_client.get_issue(runtime_config['repo_name'], issue_number)
+        
+        cached_scope_result = load_cached_result(issue_number, 'scope')
+        scope_result = None
+        if cached_scope_result:
+            from models import IssueScopeResult, ConfidenceLevel
+            confidence_score = cached_scope_result.get('confidence_score', 0.5)
+            if confidence_score >= 0.8:
+                confidence_level = ConfidenceLevel.HIGH
+            elif confidence_score >= 0.5:
+                confidence_level = ConfidenceLevel.MEDIUM
+            else:
+                confidence_level = ConfidenceLevel.LOW
+                
+            scope_result = IssueScopeResult(
+                issue_number=issue_number,
+                confidence_score=confidence_score,
+                confidence_level=confidence_level,
+                complexity_assessment=cached_scope_result.get('complexity_assessment', 'Unknown'),
+                estimated_effort=cached_scope_result.get('estimated_effort', 'Unknown'),
+                required_skills=cached_scope_result.get('required_skills', []),
+                action_plan=cached_scope_result.get('action_plan', []),
+                risks=cached_scope_result.get('risks', []),
+                session_id=cached_scope_result.get('session_id', ''),
+                session_url=cached_scope_result.get('session_url', '')
+            )
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            session = loop.run_until_complete(devin_client.create_pr(issue, scope_result))
+            
+            return jsonify({
+                'success': True,
+                'demo_mode': False,
+                'session_id': session.session_id,
+                'session_url': session.url
+            })
+        finally:
+            loop.close()
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/complete/<int:issue_number>/generate-summary')
+def generate_summary(issue_number):
+    """Generate JSON summary for an issue (second stage)"""
+    try:
+        cached_result = load_cached_result(issue_number, 'complete')
+        if cached_result:
+            if runtime_config['enable_commenting'] and not runtime_config['demo_mode']:
+                github_client = get_github_client()
+                if github_client:
+                    comment_body = format_completion_comment(cached_result, issue_number)
+                    comment_result = github_client.add_issue_comment(
+                        runtime_config['repo_name'], issue_number, comment_body
+                    )
+                    cached_result['comment_posted'] = comment_result
+            
+            return jsonify({
+                'success': True,
+                'demo_mode': runtime_config['demo_mode'],
+                'cached': True,
+                'result': cached_result
+            })
+        
+        if runtime_config['demo_mode']:
+            # Demo mode - use canned responses
+            from demo_data import DemoData
+            completion_result = DemoData.get_sample_completion_result(issue_number)
+            result_dict = completion_result.dict()
+            
+            return jsonify({
+                'success': True,
+                'demo_mode': True,
+                'result': result_dict
+            })
+        
+        github_client = get_github_client()
+        devin_client = get_devin_client()
+        
+        if not github_client:
+            return jsonify({'success': False, 'error': 'GitHub token not configured or invalid'})
+        
+        if not devin_client:
+            return jsonify({'success': False, 'error': 'Devin API key not available - summary generation requires a valid Devin API key'})
+        
+        issue = github_client.get_issue(runtime_config['repo_name'], issue_number)
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            completion_result = loop.run_until_complete(devin_client.generate_summary(issue))
             
             result_dict = completion_result.model_dump()
             save_cached_result(issue_number, 'complete', result_dict)
@@ -695,14 +819,128 @@ Previous Analysis:
             return jsonify({
                 'success': True,
                 'demo_mode': False,
-                'cached': False,
                 'result': result_dict
             })
         finally:
             loop.close()
-        
+            
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/complete/<int:issue_number>/create-pr/status/<session_id>')
+def get_pr_creation_status(issue_number, session_id):
+    """Get PR creation status"""
+    try:
+        devin_client = get_devin_client()
+        if not devin_client:
+            return jsonify({'success': False, 'error': 'Devin client not available'})
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            session = loop.run_until_complete(devin_client.get_session_status(session_id))
+            
+            if session.status in ['completed', 'stopped', 'blocked']:
+                pr_url = None
+                if session.structured_output and isinstance(session.structured_output, dict):
+                    pr_url = session.structured_output.get('pull_request_url')
+                
+                result = {
+                    'pull_request_url': pr_url,
+                    'session_url': session.url,
+                    'session_id': session_id
+                }
+                
+                return jsonify({
+                    'success': True,
+                    'status': session.status,
+                    'result': result
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'status': session.status,
+                    'session_url': session.url
+                })
+        finally:
+            loop.close()
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/complete/<int:issue_number>/generate-summary/status/<session_id>')
+def get_summary_generation_status(issue_number, session_id):
+    """Get summary generation status"""
+    try:
+        devin_client = get_devin_client()
+        if not devin_client:
+            return jsonify({'success': False, 'error': 'Devin client not available'})
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            session = loop.run_until_complete(devin_client.get_session_status(session_id))
+            
+            if session.status in ['completed', 'stopped', 'blocked']:
+                # Parse the structured output for TaskCompletionResult
+                output = session.structured_output or {}
+                if isinstance(output, str):
+                    try:
+                        import json
+                        output = json.loads(output)
+                    except Exception:
+                        output = {}
+                
+                from models import ConfidenceLevel
+                cs_raw = output.get("confidence_score") or output.get("confidence") or 0.5
+                try:
+                    confidence_score = float(cs_raw)
+                except Exception:
+                    confidence_score = 0.5
+                
+                if confidence_score >= 0.8:
+                    confidence_level = ConfidenceLevel.HIGH
+                elif confidence_score >= 0.5:
+                    confidence_level = ConfidenceLevel.MEDIUM
+                else:
+                    confidence_level = ConfidenceLevel.LOW
+                
+                result = {
+                    'issue_number': issue_number,
+                    'status': output.get("status") or "completed",
+                    'completion_summary': output.get("completion_summary") or "Summary generated",
+                    'files_modified': output.get("files_modified") or [],
+                    'pull_request_url': output.get("pull_request_url"),
+                    'session_id': session_id,
+                    'session_url': session.url,
+                    'success': bool(output.get("success", True)),
+                    'confidence_score': confidence_score,
+                    'confidence_level': confidence_level.value if hasattr(confidence_level, 'value') else str(confidence_level),
+                    'complexity_assessment': output.get("complexity_assessment") or "Unknown complexity",
+                    'implementation_quality': output.get("implementation_quality") or "Good quality",
+                    'required_skills': output.get("required_skills") or [],
+                    'action_plan': output.get("action_plan") or [],
+                    'risks': output.get("risks") or [],
+                    'test_coverage': output.get("test_coverage") or "Appropriate testing"
+                }
+                
+                return jsonify({
+                    'success': True,
+                    'status': session.status,
+                    'result': result
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'status': session.status,
+                    'session_url': session.url
+                })
+        finally:
+            loop.close()
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 async def complete_scope_session_with_devin_client(issue_number: int, issue, session_info=None):
     """Complete a scope session using DevinClient wait_for_completion()"""
     try:

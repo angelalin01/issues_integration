@@ -540,12 +540,12 @@ def get_scope_status(issue_number, session_id):
                     result_payload = {}
                 result_payload.update({
                     'session_id': session.session_id if hasattr(session, 'session_id') else session_id,
-                    'session_url': getattr(session, 'url', None)
+                    'session_url': getattr(session, 'url', None) or (f"https://app.devin.ai/sessions/{(session.session_id or session_id).replace('devin-','')}" if (hasattr(session, 'session_id') or session_id) else None)
                 })
                 return jsonify({
                     'success': True,
                     'status': session.status,
-                    'session_url': getattr(session, 'url', None),
+                    'session_url': getattr(session, 'url', None) or (f"https://app.devin.ai/sessions/{(session.session_id or session_id).replace('devin-','')}" if (hasattr(session, 'session_id') or session_id) else None),
                     'result': result_payload
                 })
             else:
@@ -1031,12 +1031,12 @@ def get_completion_status(issue_number, session_id):
                     result_payload = {}
                 result_payload.update({
                     'session_id': session.session_id if hasattr(session, 'session_id') else session_id,
-                    'session_url': getattr(session, 'url', None)
+                    'session_url': getattr(session, 'url', None) or (f"https://app.devin.ai/sessions/{(session.session_id or session_id).replace('devin-','')}" if (hasattr(session, 'session_id') or session_id) else None)
                 })
                 return jsonify({
                     'success': True,
                     'status': session.status,
-                    'session_url': getattr(session, 'url', None),
+                    'session_url': getattr(session, 'url', None) or (f"https://app.devin.ai/sessions/{(session.session_id or session_id).replace('devin-','')}" if (hasattr(session, 'session_id') or session_id) else None),
                     'result': result_payload
                 })
             else:

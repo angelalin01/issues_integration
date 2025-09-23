@@ -163,7 +163,7 @@ Format your response as JSON with these exact field names.
         )
     
     async def complete_issue(self, issue: GitHubIssue, scope_result: Optional[IssueScopeResult] = None) -> TaskCompletionResult:
-        """Complete an issue using Devin"""
+        """Complete an issue using Devin with two-stage approach"""
         action_plan_text = ""
         if scope_result:
             action_plan_text = f"""
@@ -173,8 +173,8 @@ Previous Analysis:
 - Action Plan: {', '.join(scope_result.action_plan)}
 """
         
-        prompt = f"""
-Please complete this GitHub issue by implementing the necessary changes:
+        implementation_prompt = f"""Please complete this GitHub issue by implementing the necessary changes and opening a PR. 
+Do not output JSON in this step. Just implement the fix and confirm the PR URL.
 
 Repository: {issue.repository}
 Issue #{issue.number}: {issue.title}
@@ -187,46 +187,54 @@ URL: {issue.url}
 
 {action_plan_text}
 
-Please:
-1. Clone the repository if needed
-2. Analyze the codebase to understand the issue
-3. Implement the necessary changes
-4. Create tests if appropriate
-5. Create a pull request with your changes
+Steps:
+1. Clone the repo if needed
+2. Implement the fix
+3. Create a pull request
+4. Stop after confirming the PR URL
 
-Provide a structured JSON response with:
-- status: "completed" or "failed"
-- completion_summary: brief summary of what was done
-- files_modified: list of files that were changed
-- pull_request_url: URL of created PR (if any)
-- success: boolean indicating if task was completed successfully
-- confidence_score: (0.0 to 1.0) how confident you are in the implementation quality
-- confidence_level: (low/medium/high)
-- complexity_assessment: brief description of implementation complexity
-- implementation_quality: assessment of code quality and completeness
-- required_skills: list of technical skills that were needed
-- action_plan: step-by-step summary of what was implemented
-- risks: potential risks or issues with the implementation
-- test_coverage: description of tests added or testing performed
-
-Format your response as JSON with these exact field names.
-   - Do not include natural language explanations, comments, or markdown. 
-   - The JSON should be the sole output.
-   - Create a PR but only link it in the JSON output
-
-"""
+⚠️ Important: Do not output JSON or natural language explanations of the changes. 
+Just complete the implementation and open the PR."""
         
-        session = await self.create_session(prompt)
-        completed_session = await self.wait_for_completion(session.session_id)
+        # Create first session for implementation
+        implementation_session = await self.create_session(implementation_prompt)
+        completed_implementation = await self.wait_for_completion(implementation_session.session_id)
         
-        output = completed_session.structured_output or {}
+        summary_prompt = f"""Now, summarize the implementation you just performed for Issue #{issue.number}.  
+
+Respond in JSON only, using this schema:
+
+{{
+  "status": "",
+  "completion_summary": "",
+  "files_modified": [],
+  "pull_request_url": "",
+  "success": true,
+  "confidence_score": 0.0,
+  "confidence_level": "",
+  "complexity_assessment": "",
+  "implementation_quality": "",
+  "required_skills": [],
+  "action_plan": [],
+  "risks": [],
+  "test_coverage": ""
+}}
+
+⚠️ Important: 
+- Return only the JSON object, with no natural language, markdown, or comments.
+- Do not explain the JSON, just fill in the fields with the results of the PR you just created."""
+        
+        summary_session = await self.create_session(summary_prompt)
+        completed_summary = await self.wait_for_completion(summary_session.session_id)
+        
+        output = completed_summary.structured_output or {}
         if isinstance(output, str):
             try:
                 output = json.loads(output)
             except Exception:
                 output = {}
         
-        if not output and completed_session.status in ['suspended', 'completed', 'finished']:
+        if not output and completed_summary.status in ['suspended', 'completed', 'finished']:
             output = {
                 "status": "completed", 
                 "completion_summary": f"Successfully completed issue #{issue.number}: {issue.title}",
@@ -265,8 +273,8 @@ Format your response as JSON with these exact field names.
             completion_summary=output.get("completion_summary") or output.get("summary") or "No summary available",
             files_modified=output.get("files_modified") or output.get("files") or [],
             pull_request_url=output.get("pull_request_url"),
-            session_id=session.session_id,
-            session_url=session.url,
+            session_id=f"{implementation_session.session_id},{summary_session.session_id}",
+            session_url=f"{implementation_session.url}|{summary_session.url}",
             success=bool(output.get("success", False)),
             confidence_score=confidence_score,
             confidence_level=confidence_level,

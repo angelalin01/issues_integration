@@ -500,10 +500,16 @@
                     
                     // Show session URL immediately for live mode
                     const progressDiv = document.getElementById(`progress-${selectedIssueNumber}`);
-                    progressDiv.innerHTML = `
-                        <p class="loading">Starting analysis with Devin AI...</p>
-                        <p><strong>Live Devin Session:</strong> <a href="${sessionUrl}" target="_blank" class="url">${sessionUrl}</a></p>
-                    `;
+                    console.log('Debug: sessionUrl =', sessionUrl, 'sessionId =', sessionId);
+                    console.log('Debug: progressDiv =', progressDiv);
+                    if (progressDiv && sessionUrl) {
+                        progressDiv.innerHTML = `
+                            <p class="loading">Starting analysis with Devin AI...</p>
+                            <p><strong>Live Devin Session:</strong> <a href="${sessionUrl}" target="_blank" class="url">${sessionUrl}</a></p>
+                        `;
+                    } else {
+                        console.error('Debug: Missing progressDiv or sessionUrl', {progressDiv, sessionUrl});
+                    }
                     
                     // Start polling for live mode
                     pollScopeStatus(selectedIssueNumber, sessionId);
@@ -895,31 +901,15 @@
                     }
                 } else {
                     // Handle both fresh sessions and cached results for completion
-                    let sessionId, sessionUrl;
-                    
-                    if (result.cached && result.result) {
-                        // Cached result - extract from nested result object
-                        sessionId = result.result.session_id;
-                        sessionUrl = result.result.session_url;
-                        
-                        // If cached, display results immediately
+                    if (result.result) {
+                        // Direct result available - display immediately
                         displayCompletionResult(selectedIssueNumber, result.result, result);
                         return;
                     } else {
-                        // Fresh session - extract from top level
-                        sessionId = result.session_id;
-                        sessionUrl = result.session_url;
+                        // This shouldn't happen with the new two-stage approach
+                        showError('Unexpected response format from completion API');
+                        return;
                     }
-                    
-                    // Show session URL immediately for live mode
-                    const progressDiv = document.getElementById(`complete-progress-${selectedIssueNumber}`);
-                    progressDiv.innerHTML = `
-                        <p class="loading">Starting work with Devin AI...</p>
-                        <p><strong>Live Devin Session:</strong> <a href="${sessionUrl}" target="_blank" class="url">${sessionUrl}</a></p>
-                    `;
-                    
-                    // Start polling for completion status
-                    pollCompletionStatus(selectedIssueNumber, sessionId);
                 }
             } catch (error) {
                 showError('Failed to complete issue: ' + error.message);

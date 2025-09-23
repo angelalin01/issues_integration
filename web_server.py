@@ -677,66 +677,26 @@ Previous Analysis:
 - Action Plan: {', '.join(scope_result.action_plan)}
 """
             
-            prompt = f"""
-Please complete this GitHub issue by implementing the necessary changes:
-
-Repository: {issue.repository}
-Repository URL: https://github.com/{issue.repository}
-Clone URL: https://github.com/{issue.repository}.git
-Issue #{issue.number}: {issue.title}
-
-Description:
-{issue.body}
-
-Labels: {', '.join(issue.labels)}
-URL: {issue.url}
-
-{action_plan_text}
-
-Please:
-1. Clone the repository if needed
-2. Analyze the codebase to understand the issue
-3. Implement the necessary changes
-4. Create tests if appropriate
-5. Create a pull request with your changes
-
-Provide a structured JSON response with:
-- status: "completed" or "failed"
-- completion_summary: brief summary of what was done
-- files_modified: list of files that were changed
-- pull_request_url: URL of created PR (if any)
-- success: boolean indicating if task was completed successfully
-- confidence_score: (0.0 to 1.0) how confident you are in the implementation quality
-- confidence_level: (low/medium/high)
-- complexity_assessment: brief description of implementation complexity
-- implementation_quality: assessment of code quality and completeness
-- required_skills: list of technical skills that were needed
-- action_plan: step-by-step summary of what was implemented
-- risks: potential risks or issues with the implementation
-- test_coverage: description of tests added or testing performed
-
-Format your response as JSON with these exact field names.
-   - Do not include natural language explanations, comments, or markdown. 
-   - The JSON should be the sole output.
-   - Create a PR but only link it in the JSON output
-
-"""
+            completion_result = loop.run_until_complete(devin_client.complete_issue(issue, scope_result))
             
-            session = loop.run_until_complete(devin_client.create_session(prompt))
+            result_dict = completion_result.model_dump()
+            save_cached_result(issue_number, 'complete', result_dict)
             
-            import threading
-            thread = threading.Thread(
-                target=lambda: asyncio.run(complete_completion_session_with_devin_client(issue_number, issue, scope_result, session))
-            )
-            thread.daemon = True
-            thread.start()
+            if runtime_config['enable_commenting']:
+                github_client = get_github_client()
+                if github_client:
+                    comment_body = format_completion_comment(result_dict, issue_number)
+                    comment_result = github_client.add_issue_comment(
+                        runtime_config['repo_name'], issue_number, comment_body
+                    )
+                    result_dict['comment_posted'] = comment_result
+                    save_cached_result(issue_number, 'complete', result_dict)
             
             return jsonify({
                 'success': True,
                 'demo_mode': False,
                 'cached': False,
-                'session_id': session.session_id,
-                'session_url': session.url
+                'result': result_dict
             })
         finally:
             loop.close()

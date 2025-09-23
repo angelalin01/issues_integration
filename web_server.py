@@ -520,10 +520,15 @@ def get_scope_status(issue_number, session_id):
                         if not (isinstance(cached_result, dict) and 
                                (cached_result.get('session_id', '').startswith('demo-') or
                                 cached_result.get('complexity_assessment') == 'Medium complexity - requires understanding of existing codebase')):
+                            if isinstance(cached_result, dict):
+                                sid = cached_result.get('session_id') or session_id
+                                if not cached_result.get('session_url') and sid:
+                                    cached_result['session_id'] = sid
+                                    cached_result['session_url'] = f"https://app.devin.ai/sessions/{sid.replace('devin-','')}"
                             return jsonify({
                                 'success': True,
                                 'status': session.status,
-                                'session_url': cached_result.get('session_url') or getattr(session, 'url', None),
+                                'session_url': cached_result.get('session_url') or getattr(session, 'url', None) or (f"https://app.devin.ai/sessions/{(cached_result.get('session_id') or session_id).replace('devin-','')}" if (cached_result.get('session_id') or session_id) else None),
                                 'result': cached_result
                             })
                     elif runtime_config.get('demo_mode', False):
@@ -1011,10 +1016,15 @@ def get_completion_status(issue_number, session_id):
                         if not (isinstance(cached_result, dict) and 
                                (cached_result.get('session_id', '').startswith('demo-') or
                                 cached_result.get('completion_summary') == 'Successfully implemented OAuth2 authentication with GitHub and Google providers. Added login/logout functionality with session management.')):
+                            if isinstance(cached_result, dict):
+                                sid = cached_result.get('session_id') or session_id
+                                if not cached_result.get('session_url') and sid:
+                                    cached_result['session_id'] = sid
+                                    cached_result['session_url'] = f"https://app.devin.ai/sessions/{sid.replace('devin-','')}"
                             return jsonify({
                                 'success': True,
                                 'status': session.status,
-                                'session_url': cached_result.get('session_url') or getattr(session, 'url', None),
+                                'session_url': cached_result.get('session_url') or getattr(session, 'url', None) or (f"https://app.devin.ai/sessions/{(cached_result.get('session_id') or session_id).replace('devin-','')}" if (cached_result.get('session_id') or session_id) else None),
                                 'result': cached_result
                             })
                     elif runtime_config.get('demo_mode', False):

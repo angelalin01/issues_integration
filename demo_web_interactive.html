@@ -263,6 +263,7 @@
         let pollingCount = 0;
         let prCreationInProgress = false;
         let prCreationCompleted = false;
+        let createdPRUrl = null;
 
         function updateSelectedIssue() {
             const select = document.getElementById('selected-issue');
@@ -899,7 +900,16 @@
             `;
 
             try {
-                const response = await fetch(`${window.location.origin}/api/complete/${selectedIssueNumber}/generate-summary`);
+                const url = `${window.location.origin}/api/complete/${selectedIssueNumber}/generate-summary`;
+                const requestBody = createdPRUrl ? { pr_url: createdPRUrl } : {};
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
                 const result = await response.json();
 
                 if (!result.success) {
@@ -942,6 +952,7 @@
                         document.getElementById('generate-summary-btn').disabled = false;
                         
                         if (result.result) {
+                            createdPRUrl = result.result.pull_request_url;
                             displayPRCreationResult(issueNumber, result.result, result);
                         }
                         return;
@@ -1087,6 +1098,7 @@
             document.getElementById('generate-summary-btn').textContent = 'Generate Summary';
             prCreationInProgress = false;
             prCreationCompleted = false;
+            createdPRUrl = null;
         }
 
         function showError(message) {

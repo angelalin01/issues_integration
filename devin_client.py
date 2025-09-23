@@ -174,7 +174,7 @@ Previous Analysis:
 """
         
         implementation_prompt = f"""Please complete this GitHub issue by implementing the necessary changes and opening a PR. 
-Do not output JSON in this step. Just implement the fix and confirm the PR URL.
+At the end, output ONLY the PR URL in this exact format: PR_URL: [url]
 
 Repository: {issue.repository}
 Issue #{issue.number}: {issue.title}
@@ -191,16 +191,24 @@ Steps:
 1. Clone the repo if needed
 2. Implement the fix
 3. Create a pull request
-4. Stop after confirming the PR URL
+4. Output the PR URL in the exact format: PR_URL: [url]
 
 ⚠️ Important: Do not output JSON or natural language explanations of the changes. 
-Just complete the implementation and open the PR."""
+Just complete the implementation, open the PR, and output the PR URL in the specified format."""
         
         return await self.create_session(implementation_prompt)
 
-    async def generate_summary(self, issue: GitHubIssue) -> TaskCompletionResult:
+    async def generate_summary(self, issue: GitHubIssue, pr_url: Optional[str] = None) -> TaskCompletionResult:
         """Generate JSON summary for an issue (second stage)"""
-        summary_prompt = f"""Now, summarize the implementation you just performed for Issue #{issue.number}.  
+        pr_context = f"Pull Request URL: {pr_url}\n\n" if pr_url else ""
+        
+        summary_prompt = f"""Please analyze and summarize the implementation for Issue #{issue.number}.
+
+{pr_context}Repository: {issue.repository}
+Issue #{issue.number}: {issue.title}
+
+Description:
+{issue.body}
 
 Respond in JSON only, using this schema:
 

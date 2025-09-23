@@ -753,7 +753,7 @@ def create_pr(issue_number):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/complete/<int:issue_number>/generate-summary')
+@app.route('/api/complete/<int:issue_number>/generate-summary', methods=['GET', 'POST'])
 def generate_summary(issue_number):
     """Generate JSON summary for an issue (second stage)"""
     try:
@@ -798,10 +798,15 @@ def generate_summary(issue_number):
         
         issue = github_client.get_issue(runtime_config['repo_name'], issue_number)
         
+        pr_url = None
+        if request.method == 'POST' and request.is_json:
+            data = request.get_json()
+            pr_url = data.get('pr_url') if data else None
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            completion_result = loop.run_until_complete(devin_client.generate_summary(issue))
+            completion_result = loop.run_until_complete(devin_client.generate_summary(issue, pr_url))
             
             result_dict = completion_result.model_dump()
             save_cached_result(issue_number, 'complete', result_dict)
@@ -844,6 +849,12 @@ def get_pr_creation_status(issue_number, session_id):
                 pr_url = None
                 if session.structured_output and isinstance(session.structured_output, dict):
                     pr_url = session.structured_output.get('pull_request_url')
+                
+                if not pr_url and hasattr(session, 'output') and session.output:
+                    import re
+                    pr_url_match = re.search(r'PR_URL:\s*(https?://[^\s]+)', session.output)
+                    if pr_url_match:
+                        pr_url = pr_url_match.group(1)
                 
                 result = {
                     'pull_request_url': pr_url,

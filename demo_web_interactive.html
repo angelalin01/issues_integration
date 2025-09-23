@@ -953,9 +953,7 @@
                         
                         if (result.result) {
                             createdPRUrl = result.result.pull_request_url;
-                            // Debug: Log the actual result structure
-                            console.log('PR Creation Result:', result);
-                            console.log('Result.result:', result.result);
+                            // The session_url is already in result.result from the backend
                             displayPRCreationResult(issueNumber, result.result, result);
                         }
                         return;
@@ -974,7 +972,7 @@
                 }
             };
             
-            setTimeout(poll, 30000);
+            poll();
         }
 
         async function pollSummaryGenerationStatus(issueNumber, sessionId) {
@@ -988,8 +986,12 @@
                     
                     if (result.success && result.status && ['completed', 'stopped', 'blocked'].includes(result.status)) {
                         if (result.result) {
-                            // Session URL is already in result.result for completed sessions
-                            displaySummaryResult(issueNumber, result.result, result);
+                            // Pass the complete result object that includes session_url, not just result.result
+                            const completeResult = {
+                                ...result.result,
+                                session_url: result.session_url
+                            };
+                            displaySummaryResult(issueNumber, completeResult, result);
                         }
                         return;
                     }
@@ -1005,7 +1007,7 @@
                 }
             };
             
-            setTimeout(poll, 30000);
+            poll();
         }
 
         function displayPRCreationResult(issueNumber, result, response) {

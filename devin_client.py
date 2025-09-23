@@ -124,21 +124,27 @@ Labels: {', '.join(issue.labels)}
 State: {issue.state}
 URL: {issue.url}
 
-Please provide a structured analysis with:
-1. confidence_score (0.0 to 1.0) - how confident you are this can be completed successfully
-2. confidence_level (low/medium/high) 
-3. complexity_assessment - brief description of complexity
-4. estimated_effort - time estimate (e.g., "2-4 hours", "1-2 days")
-5. required_skills - list of technical skills needed
-6. action_plan - step-by-step plan to complete the issue
-7. risks - potential risks or blockers
+⚠️ CRITICAL: Return ONLY a JSON object with NO natural language, explanations, markdown, or comments.
 
-IMPORTANT: Do NOT start implementation in this scoping step. Only provide analysis.
+Required JSON schema:
+{{
+  "confidence_score": 0.0,
+  "confidence_level": "low|medium|high",
+  "complexity_assessment": "brief description",
+  "estimated_effort": "time estimate",
+  "required_skills": ["skill1", "skill2"],
+  "action_plan": ["step1", "step2"],
+  "risks": ["risk1", "risk2"]
+}}
 
-Format your response as JSON with these exact field names.
+IMPORTANT: 
+- Do NOT start implementation in this scoping step. Only provide analysis.
+- Return ONLY the JSON object above with no additional text.
+- Do NOT include any natural language explanations outside the JSON.
+- Do NOT use markdown formatting or code blocks.
 """
         
-        session = await self.create_session(prompt, prefill_response="json '{")
+        session = await self.create_session(prompt, prefill_response="{")
         completed_session = await self.wait_for_completion(session.session_id)
         
         output = completed_session.structured_output or {}

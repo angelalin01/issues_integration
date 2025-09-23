@@ -603,76 +603,44 @@ def complete_issue(issue_number):
         
         cached_scope_result = load_cached_result(issue_number, 'scope')
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            action_plan_text = ""
-            if cached_scope_result:
-                action_plan_text = f"""
-Previous Scoping Analysis:
-- Confidence Score: {cached_scope_result.get('confidence_score', 'Unknown')}
-- Estimated Effort: {cached_scope_result.get('estimated_effort', 'Unknown')}
-- Complexity: {cached_scope_result.get('complexity_assessment', 'Unknown')}
-- Action Plan: {', '.join(cached_scope_result.get('action_plan', []))}
-- Required Skills: {', '.join(cached_scope_result.get('required_skills', []))}
-- Risks: {', '.join(cached_scope_result.get('risks', []))}
-
-"""
-
-            prompt = f"""Please complete this GitHub issue by implementing the necessary changes:
-
-Repository: {issue.repository}
-Issue: #{issue.number}: {issue.title}
-
-Description:
-{issue.body}
-
-Labels: {', '.join(issue.labels)}
-URL: {issue.url}
-
-{action_plan_text}Steps:
-1. Implement the change and open a PR.
-2. After the implementation is complete, return ONLY a JSON object containing the fields below. 
-   - Do not include natural language explanations, comments, or markdown. 
-   - The JSON should be the sole output.
-
-JSON Schema:
-{{
-  "status": "...",
-  "completion_summary": "...",
-  "files_modified": [...],
-  "pull_request_url": "...",
-  "success": true/false,
-  "confidence_score": 0.0-1.0,
-  "confidence_level": "low" | "medium" | "high",
-  "complexity_assessment": "...",
-  "implementation_quality": "...",
-  "required_skills": [...],
-  "action_plan": [...],
-  "risks": [...],
-  "test_coverage": "..."
-}}
-
-Important: Your final output must be valid JSON only, no natural language explanations."""
-            
-            session = loop.run_until_complete(devin_client.create_session(prompt))
-            
-            import threading
-            thread = threading.Thread(
-                target=lambda: asyncio.run(complete_completion_session(issue_number, session.session_id, issue))
+        scope_result = None
+        if cached_scope_result:
+            from models import IssueScopeResult, ConfidenceLevel
+            confidence_score = cached_scope_result.get('confidence_score', 0.5)
+            if confidence_score >= 0.8:
+                confidence_level = ConfidenceLevel.HIGH
+            elif confidence_score >= 0.5:
+                confidence_level = ConfidenceLevel.MEDIUM
+            else:
+                confidence_level = ConfidenceLevel.LOW
+                
+            scope_result = IssueScopeResult(
+                issue_number=issue_number,
+                confidence_score=confidence_score,
+                confidence_level=confidence_level,
+                complexity_assessment=cached_scope_result.get('complexity_assessment', 'Unknown'),
+                estimated_effort=cached_scope_result.get('estimated_effort', 'Unknown'),
+                required_skills=cached_scope_result.get('required_skills', []),
+                action_plan=cached_scope_result.get('action_plan', []),
+                risks=cached_scope_result.get('risks', []),
+                session_id=cached_scope_result.get('session_id', ''),
+                session_url=cached_scope_result.get('session_url', '')
             )
-            thread.daemon = True
-            thread.start()
-            
-            return jsonify({
-                'success': True,
-                'demo_mode': False,
-                'cached': False,
-                'session_id': session.session_id,
-                'session_url': session.url
-            })
-        finally:
-            loop.close()
+        
+        import threading
+        thread = threading.Thread(
+            target=lambda: asyncio.run(complete_completion_session_with_devin_client(issue_number, issue, scope_result))
+        )
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            'success': True,
+            'demo_mode': False,
+            'cached': False,
+            'session_id': 'pending',
+            'session_url': 'pending'
+        })
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -930,6 +898,41 @@ def get_completion_status(issue_number, session_id):
             
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+async def complete_completion_session_with_devin_client(issue_number: int, issue, scope_result=None):
+    """Complete a completion session using DevinClient.complete_issue()"""
+    try:
+        devin_client = get_devin_client()
+        if not devin_client:
+            print(f"[complete_completion_session_with_devin_client] No Devin client available for issue {issue_number}")
+            return
+        
+        print(f"[complete_completion_session_with_devin_client] Starting completion for issue {issue_number}")
+        
+        completion_result = await devin_client.complete_issue(issue, scope_result)
+        
+        print(f"[complete_completion_session_with_devin_client] Completion finished for issue {issue_number}")
+        
+        result_dict = completion_result.dict()
+        save_cached_result(issue_number, 'complete', result_dict)
+        
+        print(f"[complete_completion_session_with_devin_client] Cached completion result for issue {issue_number}")
+        
+        if runtime_config['enable_commenting']:
+            github_client = get_github_client()
+            if github_client:
+                comment_body = format_completion_comment(result_dict, issue_number)
+                comment_result = github_client.add_issue_comment(
+                    runtime_config['repo_name'], issue_number, comment_body
+                )
+                result_dict['comment_posted'] = comment_result
+                save_cached_result(issue_number, 'complete', result_dict)
+        
+    except Exception as e:
+        print(f"[complete_completion_session_with_devin_client] Error completing issue {issue_number}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+
 
 async def complete_completion_session(issue_number, session_id, issue):
     """Background task to complete completion session and cache result"""

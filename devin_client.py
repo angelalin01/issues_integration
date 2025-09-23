@@ -194,7 +194,7 @@ Please:
 4. Create tests if appropriate
 5. Create a pull request with your changes
 
-Provide a structured response with:
+Provide a structured JSON response with:
 - status: "completed" or "failed"
 - completion_summary: brief summary of what was done
 - files_modified: list of files that were changed
@@ -210,6 +210,10 @@ Provide a structured response with:
 - test_coverage: description of tests added or testing performed
 
 Format your response as JSON with these exact field names.
+   - Do not include natural language explanations, comments, or markdown. 
+   - The JSON should be the sole output.
+   - Create a PR but only link it in the JSON output
+
 """
         
         session = await self.create_session(prompt)

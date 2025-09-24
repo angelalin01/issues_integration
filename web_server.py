@@ -407,6 +407,8 @@ Required JSON schema:
 
 IMPORTANT: 
 - Do NOT start implementation in this scoping step. Only provide analysis.
+- Do NOT create a pull request in this step under any circumstances.
+- End the session immediately after returning the JSON object.
 - Return ONLY the JSON object above with no additional text. absolutely no additional text whatsoever
 - Do NOT include any natural language explanations outside the JSON.
 """
@@ -578,6 +580,8 @@ Required JSON schema:
 
 IMPORTANT: 
 - Do NOT start implementation in this scoping step. Only provide analysis.
+- Do NOT create a pull request in this step under any circumstances.
+- End the session immediately after returning the JSON object.
 - Return ONLY the JSON object above with no additional text.
 - Do NOT include any natural language explanations outside the JSON.
 - Do NOT use markdown formatting or code blocks.
@@ -685,8 +689,10 @@ Required JSON schema:
  "risks": ["risk1", "risk2"]
 }}
 
-IMPORTANT:
+IMPORTANT: 
 - Do NOT start implementation in this scoping step. Only provide analysis.
+- Do NOT create a pull request in this step under any circumstances.
+- End the session immediately after returning the JSON object.
 - Return ONLY the JSON object above with no additional text. absolutely no additional text whatsoever
 - Do NOT include any natural language explanations outside the JSON.
 """

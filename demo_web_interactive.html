@@ -507,7 +507,8 @@
                         return setTimeout(poll, 5000);
                     }
                     if (s.status === 'completed') {
-                        container.innerHTML += `
+                        container.innerHTML = `
+                            <div class="step-title">Step 2a: Scoping Assessment for #${selectedIssueNumber}</div>
                             <pre class="panel"><code>${JSON.stringify(s.result, null, 2)}</code></pre>
                         `;
                         return;
@@ -560,7 +561,8 @@
                         return setTimeout(poll, 5000);
                     }
                     if (s.status === 'completed') {
-                        container.innerHTML += `
+                        container.innerHTML = `
+                            <div class="step-title">Step 2b: Scoping Plan for #${selectedIssueNumber}</div>
                             <pre class="panel"><code>${JSON.stringify(s.result, null, 2)}</code></pre>
                         `;
                         return;

@@ -1057,75 +1057,141 @@
         }
 
         async function pollPRCreationStatus(issueNumber, sessionId) {
-            const maxPolls = 60;
+            const maxPolls = 300;
             let pollCount = 0;
-            
+
+            const progressDiv = document.getElementById(`create-pr-progress-${issueNumber}`);
+
             const poll = async () => {
                 try {
                     const response = await fetch(`${window.location.origin}/api/complete/${issueNumber}/create-pr/status/${sessionId}`);
-                    const result = await response.json();
-                    
+                    let result;
+                    try {
+                        result = await response.json();
+                    } catch (_) {
+                        result = { success: false, error: 'Non-JSON response' };
+                    }
+
+                    if (result && result.session_url && progressDiv && !progressDiv.innerHTML.includes(result.session_url)) {
+                        progressDiv.innerHTML = `
+                            <p><strong>Live Devin Session:</strong> <a href="${result.session_url}" target="_blank" class="url">${result.session_url}</a></p>
+                            <p class="loading">Processing...</p>
+                        `;
+                    }
+
                     if (result.success && result.status && ['completed', 'stopped', 'blocked'].includes(result.status)) {
                         prCreationInProgress = false;
                         prCreationCompleted = true;
                         document.getElementById('generate-summary-btn').disabled = false;
-                        
+
                         if (result.result) {
                             createdPRUrl = result.result.pull_request_url;
-                            // The session_url is already in result.result from the backend
                             displayPRCreationResult(issueNumber, result.result, result);
                         }
                         return;
                     }
-                    
+
+                    if (progressDiv) {
+                        progressDiv.innerHTML = (progressDiv.innerHTML || '') + '';
+                        const statusText = result.progress_message ? ` ${result.progress_message}` : ' Processing...';
+                        progressDiv.innerHTML = `
+                            <p><strong>Live Devin Session:</strong> <a href="${(result.session_url || (progressDiv.querySelector('a') ? progressDiv.querySelector('a').href : '#'))}" target="_blank" class="url">${(result.session_url || (progressDiv.querySelector('a') ? progressDiv.querySelector('a').href : '#'))}</a></p>
+                            <p class="loading">${statusText}</p>
+                        `;
+                    }
+
                     pollCount++;
                     if (pollCount < maxPolls) {
-                        setTimeout(poll, 30000);
+                        setTimeout(poll, 5000);
                     } else {
                         showError('PR creation timed out. Please check the session URL for progress.');
                         prCreationInProgress = false;
                     }
                 } catch (error) {
-                    showError('Error polling PR creation status: ' + error.message);
-                    prCreationInProgress = false;
+                    if (progressDiv) {
+                        progressDiv.innerHTML = `
+                            <p><strong>Live Devin Session:</strong> <a href="${(progressDiv.querySelector('a') ? progressDiv.querySelector('a').href : '#')}" target="_blank" class="url">${(progressDiv.querySelector('a') ? progressDiv.querySelector('a').href : '#')}</a></p>
+                            <p class="loading">Processing... (still running; retrying after transient error)</p>
+                        `;
+                    }
+                    pollCount++;
+                    if (pollCount < maxPolls) {
+                        setTimeout(poll, 5000);
+                    } else {
+                        showError('PR creation timed out. Please check the session URL for progress.');
+                        prCreationInProgress = false;
+                    }
                 }
             };
-            
+
             poll();
         }
 
         async function pollSummaryGenerationStatus(issueNumber, sessionId) {
-            const maxPolls = 20;
+            const maxPolls = 300;
             let pollCount = 0;
-            
+
+            const stepDiv = document.getElementById(`generate-summary-step-${issueNumber}`);
+
             const poll = async () => {
                 try {
                     const response = await fetch(`${window.location.origin}/api/complete/${issueNumber}/generate-summary/status/${sessionId}`);
-                    const result = await response.json();
-                    
+                    let result;
+                    try {
+                        result = await response.json();
+                    } catch (_) {
+                        result = { success: false, error: 'Non-JSON response' };
+                    }
+
+                    if (result && result.session_url && stepDiv && !stepDiv.innerHTML.includes(result.session_url)) {
+                        stepDiv.innerHTML = `
+                            <div class="step-title">Step 3b: Generating Summary for Issue #${issueNumber}</div>
+                            <div class="panel loading">
+                                <h3>Summary Generation in Progress</h3>
+                                <p><strong>Status:</strong> <span class="loading">Processing...</span></p>
+                                <p><strong>Session URL:</strong> <a href="${result.session_url}" class="url">${result.session_url}</a></p>
+                            </div>
+                        `;
+                    }
+
                     if (result.success && result.status && ['completed', 'stopped', 'blocked'].includes(result.status)) {
                         if (result.result) {
-                            // Pass the complete result object that includes session_url, not just result.result
                             const completeResult = {
                                 ...result.result,
-                                session_url: result.session_url
+                                session_url: result.session_url || (result.result && result.result.session_url)
                             };
                             displaySummaryResult(issueNumber, completeResult, result);
                         }
                         return;
                     }
-                    
+
                     pollCount++;
                     if (pollCount < maxPolls) {
-                        setTimeout(poll, 30000);
+                        setTimeout(poll, 5000);
                     } else {
                         showError('Summary generation timed out. Please check the session URL for progress.');
                     }
                 } catch (error) {
-                    showError('Error polling summary generation status: ' + error.message);
+                    if (stepDiv) {
+                        const existingUrl = (stepDiv.querySelector('a') ? stepDiv.querySelector('a').href : '#');
+                        stepDiv.innerHTML = `
+                            <div class="step-title">Step 3b: Generating Summary for Issue #${issueNumber}</div>
+                            <div class="panel loading">
+                                <h3>Summary Generation in Progress</h3>
+                                <p><strong>Status:</strong> <span class="loading">Processing... (still running; retrying after transient error)</span></p>
+                                <p><strong>Session URL:</strong> <a href="${existingUrl}" class="url">${existingUrl}</a></p>
+                            </div>
+                        `;
+                    }
+                    pollCount++;
+                    if (pollCount < maxPolls) {
+                        setTimeout(poll, 5000);
+                    } else {
+                        showError('Summary generation timed out. Please check the session URL for progress.');
+                    }
                 }
             };
-            
+
             poll();
         }
 

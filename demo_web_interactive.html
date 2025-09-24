@@ -236,7 +236,8 @@
                     </select>
                 </div>
                 
-                <button class="btn" id="scope-btn" onclick="scopeIssue()" disabled>Scope Issue</button>
+                <button class="btn" id="scope-2a-btn" onclick="scopeIssue2a()" disabled>Scope Step 2a</button>
+                <button class="btn" id="scope-2b-btn" onclick="scopeIssue2b()" disabled>Scope Step 2b</button>
                 <button class="btn" id="create-pr-btn" onclick="createPR()" disabled>Create PR</button>
                 <button class="btn" id="generate-summary-btn" onclick="generateSummary()" disabled>Generate Summary</button>
                 <button class="btn" onclick="resetDemo()">Reset</button>
@@ -269,20 +270,25 @@
             const select = document.getElementById('selected-issue');
             selectedIssueNumber = select.value ? parseInt(select.value) : null;
             
-            const scopeBtn = document.getElementById('scope-btn');
+            const scope2aBtn = document.getElementById('scope-2a-btn');
+            const scope2bBtn = document.getElementById('scope-2b-btn');
             const createPRBtn = document.getElementById('create-pr-btn');
             const generateSummaryBtn = document.getElementById('generate-summary-btn');
             
             if (selectedIssueNumber) {
-                scopeBtn.textContent = `Scope Issue #${selectedIssueNumber}`;
-                scopeBtn.disabled = false;
+                scope2aBtn.textContent = `Scope Step 2a #${selectedIssueNumber}`;
+                scope2aBtn.disabled = false;
+                scope2bBtn.textContent = `Scope Step 2b #${selectedIssueNumber}`;
+                scope2bBtn.disabled = false;
                 createPRBtn.textContent = `Create PR #${selectedIssueNumber}`;
                 createPRBtn.disabled = false;
                 generateSummaryBtn.textContent = `Generate Summary #${selectedIssueNumber}`;
                 generateSummaryBtn.disabled = true;
             } else {
-                scopeBtn.textContent = 'Scope Issue';
-                scopeBtn.disabled = true;
+                scope2aBtn.textContent = 'Scope Step 2a';
+                scope2aBtn.disabled = true;
+                scope2bBtn.textContent = 'Scope Step 2b';
+                scope2bBtn.disabled = true;
                 createPRBtn.textContent = 'Create PR';
                 createPRBtn.disabled = true;
                 generateSummaryBtn.textContent = 'Generate Summary';
@@ -453,6 +459,102 @@
                     
                     // Show issue selector
                     document.getElementById('issue-selector').style.display = 'block';
+        async function scopeIssue2a() {
+            if (!selectedIssueNumber) { showError('Please select an issue first'); return; }
+            const stepsDiv = document.getElementById('demo-steps');
+            const stepId = `scope-2a-step-${selectedIssueNumber}`;
+            stepsDiv.innerHTML += `
+                <div class="step" id="${stepId}">
+                    <div class="step-title">Step 2a: Scoping Assessment for #${selectedIssueNumber}</div>
+                    <p class="loading">Starting analysis with Devin AI...</p>
+                    <div id="progress-2a-${selectedIssueNumber}"></div>
+                </div>
+            `;
+            try {
+                const resp = await fetch(`${window.location.origin}/api/scope-2a/${selectedIssueNumber}`);
+                const data = await resp.json();
+                if (!data.success) { showError('Failed to start Step 2a: ' + (data.error || '')); return; }
+                const container = document.getElementById(stepId);
+                if (data.session_url) {
+                    container.innerHTML = `
+                        <div class="step-title">Step 2a: Scoping Assessment for #${selectedIssueNumber}</div>
+                        <p>Session URL: <a class="url" href="${data.session_url}" target="_blank">${data.session_url}</a></p>
+                        <div id="progress-2a-${selectedIssueNumber}" class="loading">Processing...</div>
+                    `;
+                }
+                if (data.cached && data.result) {
+                    container.innerHTML += `
+                        <pre class="panel"><code>${JSON.stringify(data.result, null, 2)}</code></pre>
+                    `;
+                    return;
+                }
+                const sessionId = data.session_id;
+                async function poll() {
+                    const r = await fetch(`${window.location.origin}/api/scope-2a/${selectedIssueNumber}/status/${sessionId}`);
+                    const s = await r.json();
+                    if (!s.success) { showError('Step 2a status failed: ' + (s.error || '')); return; }
+                    if (s.status === 'completed') {
+                        container.innerHTML += `
+                            <pre class="panel"><code>${JSON.stringify(s.result, null, 2)}</code></pre>
+                        `;
+                        return;
+                    }
+                    setTimeout(poll, 3000);
+                }
+                poll();
+            } catch (e) {
+                showError('Step 2a failed: ' + e.message);
+            }
+        }
+
+        async function scopeIssue2b() {
+            if (!selectedIssueNumber) { showError('Please select an issue first'); return; }
+            const stepsDiv = document.getElementById('demo-steps');
+            const stepId = `scope-2b-step-${selectedIssueNumber}`;
+            stepsDiv.innerHTML += `
+                <div class="step" id="${stepId}">
+                    <div class="step-title">Step 2b: Scoping Plan for #${selectedIssueNumber}</div>
+                    <p class="loading">Starting analysis with Devin AI...</p>
+                    <div id="progress-2b-${selectedIssueNumber}"></div>
+                </div>
+            `;
+            try {
+                const resp = await fetch(`${window.location.origin}/api/scope-2b/${selectedIssueNumber}`);
+                const data = await resp.json();
+                if (!data.success) { showError('Failed to start Step 2b: ' + (data.error || '')); return; }
+                const container = document.getElementById(stepId);
+                if (data.session_url) {
+                    container.innerHTML = `
+                        <div class="step-title">Step 2b: Scoping Plan for #${selectedIssueNumber}</div>
+                        <p>Session URL: <a class="url" href="${data.session_url}" target="_blank">${data.session_url}</a></p>
+                        <div id="progress-2b-${selectedIssueNumber}" class="loading">Processing...</div>
+                    `;
+                }
+                if (data.cached && data.result) {
+                    container.innerHTML += `
+                        <pre class="panel"><code>${JSON.stringify(data.result, null, 2)}</code></pre>
+                    `;
+                    return;
+                }
+                const sessionId = data.session_id;
+                async function poll() {
+                    const r = await fetch(`${window.location.origin}/api/scope-2b/${selectedIssueNumber}/status/${sessionId}`);
+                    const s = await r.json();
+                    if (!s.success) { showError('Step 2b status failed: ' + (s.error || '')); return; }
+                    if (s.status === 'completed') {
+                        container.innerHTML += `
+                            <pre class="panel"><code>${JSON.stringify(s.result, null, 2)}</code></pre>
+                        `;
+                        return;
+                    }
+                    setTimeout(poll, 3000);
+                }
+                poll();
+            } catch (e) {
+                showError('Step 2b failed: ' + e.message);
+            }
+        }
+
                 } else {
                     showError('Failed to fetch issues: ' + result.error);
                 }

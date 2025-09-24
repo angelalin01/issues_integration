@@ -333,6 +333,136 @@ def list_issues():
         })
         
     except Exception as e:
+@app.route('/api/scope-2a/<int:issue_number>')
+def scope_issue_2a(issue_number):
+    try:
+        cached_result = load_cached_result(issue_number, 'scope_2a')
+        if cached_result:
+            if not runtime_config.get('demo_mode', False):
+                if isinstance(cached_result, dict) and (str(cached_result.get('session_id', '')).startswith('demo-')):
+                    pass
+                else:
+                    return jsonify({
+                        'success': True,
+                        'demo_mode': runtime_config['demo_mode'],
+                        'cached': True,
+                        'result': cached_result
+                    })
+            else:
+                return jsonify({
+                    'success': True,
+                    'demo_mode': runtime_config['demo_mode'],
+                    'cached': True,
+                    'result': cached_result
+                })
+
+        if runtime_config['demo_mode']:
+            demo = {
+                "confidence_score": 0.6,
+                "complexity_assessment": "Medium complexity - code understanding required",
+                "estimated_effort": "1-2 days",
+                "session_id": f"demo-2a-{issue_number}",
+                "session_url": ""
+            }
+            save_cached_result(issue_number, 'scope_2a', demo)
+            return jsonify({'success': True, 'demo_mode': True, 'cached': False, 'result': demo})
+
+        github_client = get_github_client()
+        devin_client = get_devin_client()
+        if not github_client:
+            return jsonify({'success': False, 'error': 'GitHub token not configured or invalid'})
+        if not devin_client:
+            return jsonify({'success': False, 'error': 'Devin API key not available'})
+
+        issue = github_client.get_issue(runtime_config['repo_name'], issue_number)
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            prompt = f"""
+Please analyze this GitHub issue and provide a structured assessment:
+
+Repository: {issue.repository}
+Repository URL: https://github.com/{issue.repository}
+Clone URL: https://github.com/{issue.repository}.git
+Issue #{issue.number}: {issue.title}
+
+Description:
+{issue.body}
+
+Labels: {', '.join(issue.labels)}
+State: {issue.state}
+URL: {issue.url}
+
+⚠️ CRITICAL: Return ONLY a JSON object with NO natural language, explanations, markdown, or comments. absolutely no additional text whatsoever
+
+Required JSON schema:
+{{
+  "confidence_score": 0.0,
+  "complexity_assessment": "brief description",
+  "estimated_effort": "time estimate"
+}}
+
+IMPORTANT: 
+- Do NOT start implementation in this scoping step. Only provide analysis.
+- Return ONLY the JSON object above with no additional text. absolutely no additional text whatsoever
+- Do NOT include any natural language explanations outside the JSON.
+"""
+            session = loop.run_until_complete(devin_client.create_session(prompt, prefill_response="{"))
+
+            import threading
+            thread = threading.Thread(
+                target=lambda: asyncio.run(complete_scope_2a_session(issue_number, issue, session))
+            )
+            thread.daemon = True
+            thread.start()
+
+            return jsonify({
+                'success': True,
+                'demo_mode': False,
+                'session_id': session.session_id,
+                'session_url': session.url,
+                'status': 'started'
+            })
+        finally:
+            loop.close()
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/scope-2a/<int:issue_number>/status/<session_id>')
+def get_scope_2a_status(issue_number, session_id):
+    try:
+        if runtime_config['demo_mode']:
+            cached_result = load_cached_result(issue_number, 'scope_2a')
+            if cached_result:
+                return jsonify({'success': True, 'status': 'completed', 'result': cached_result})
+            return jsonify({'success': True, 'status': 'running', 'progress_message': 'Processing (demo)...'})
+
+        devin_client = get_devin_client()
+        if not devin_client:
+            return jsonify({'success': False, 'error': 'Devin client not available'})
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            session = loop.run_until_complete(devin_client.get_session_status(session_id))
+            if session.status in ['completed', 'stopped', 'blocked', 'suspended']:
+                cached_result = load_cached_result(issue_number, 'scope_2a')
+                if cached_result:
+                    return jsonify({'success': True, 'status': 'completed', 'result': cached_result})
+                return jsonify({'success': True, 'status': session.status, 'session_url': session.url})
+            return jsonify({
+                'success': True,
+                'status': 'running',
+                'session_url': session.url,
+                'progress_message': 'Scoping (2a) in progress...'
+            })
+        finally:
+            loop.close()
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/scope/<int:issue_number>')
@@ -517,6 +647,147 @@ def get_scope_status(issue_number, session_id):
         try:
             session = loop.run_until_complete(devin_client.get_session_status(session_id))
             print(f"DEBUG: Status endpoint - session {session_id} has status: {session.status}")
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/scope-2b/<int:issue_number>')
+def scope_issue_2b(issue_number):
+    try:
+        cached_result = load_cached_result(issue_number, 'scope_2b')
+        if cached_result:
+            if not runtime_config.get('demo_mode', False):
+                if isinstance(cached_result, dict) and (str(cached_result.get('session_id', '')).startswith('demo-')):
+                    pass
+                else:
+                    return jsonify({
+                        'success': True,
+                        'demo_mode': runtime_config['demo_mode'],
+                        'cached': True,
+                        'result': cached_result
+                    })
+            else:
+                return jsonify({
+                    'success': True,
+                    'demo_mode': runtime_config['demo_mode'],
+                    'cached': True,
+                    'result': cached_result
+                })
+
+        step2a = load_cached_result(issue_number, 'scope_2a')
+        if not step2a:
+            return jsonify({'success': False, 'error': 'Step 2a result not found. Please run Step 2a first.'})
+
+        if runtime_config['demo_mode']:
+            demo = {
+                "required_skills": ["Python", "NLP"],
+                "action_plan": ["Review dataset", "Implement extractor", "Test and validate"],
+                "risks": ["Ambiguous requirements", "Data quality"],
+                "session_id": f"demo-2b-{issue_number}",
+                "session_url": ""
+            }
+            save_cached_result(issue_number, 'scope_2b', demo)
+            return jsonify({'success': True, 'demo_mode': True, 'cached': False, 'result': demo})
+
+        github_client = get_github_client()
+        devin_client = get_devin_client()
+        if not github_client:
+            return jsonify({'success': False, 'error': 'GitHub token not configured or invalid'})
+        if not devin_client:
+            return jsonify({'success': False, 'error': 'Devin API key not available'})
+
+        issue = github_client.get_issue(runtime_config['repo_name'], issue_number)
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            import json as _json
+            step2a_json = _json.dumps(step2a, ensure_ascii=False)
+            prompt = f"""
+Please continue scoping this GitHub issue using the analysis from Step 2a.
+
+Repository: {issue.repository}
+Repository URL: https://github.com/{issue.repository}
+Clone URL: https://github.com/{issue.repository}.git
+Issue #{issue.number}: {issue.title}
+
+Description:
+{issue.body}
+
+Labels: {', '.join(issue.labels)}
+State: {issue.state}
+URL: {issue.url}
+
+Step 2a output:
+{step2a_json}
+
+⚠️ CRITICAL: Return ONLY a JSON object with NO natural language, explanations, markdown, or comments. absolutely no additional text whatsoever
+
+Required JSON schema:
+{{
+ "required_skills": ["skill1", "skill2"],
+ "action_plan": ["step1", "step2"],
+ "risks": ["risk1", "risk2"]
+}}
+
+IMPORTANT:
+- Do NOT start implementation in this scoping step. Only provide analysis.
+- Return ONLY the JSON object above with no additional text. absolutely no additional text whatsoever
+- Do NOT include any natural language explanations outside the JSON.
+"""
+            session = loop.run_until_complete(devin_client.create_session(prompt, prefill_response="{"))
+
+            import threading
+            thread = threading.Thread(
+                target=lambda: asyncio.run(complete_scope_2b_session(issue_number, issue, session))
+            )
+            thread.daemon = True
+            thread.start()
+
+            return jsonify({
+                'success': True,
+                'demo_mode': False,
+                'session_id': session.session_id,
+                'session_url': session.url,
+                'status': 'started'
+            })
+        finally:
+            loop.close()
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/scope-2b/<int:issue_number>/status/<session_id>')
+def get_scope_2b_status(issue_number, session_id):
+    try:
+        if runtime_config['demo_mode']:
+            cached_result = load_cached_result(issue_number, 'scope_2b')
+            if cached_result:
+                return jsonify({'success': True, 'status': 'completed', 'result': cached_result})
+            return jsonify({'success': True, 'status': 'running', 'progress_message': 'Processing (demo)...'})
+
+        devin_client = get_devin_client()
+        if not devin_client:
+            return jsonify({'success': False, 'error': 'Devin client not available'})
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            session = loop.run_until_complete(devin_client.get_session_status(session_id))
+            if session.status in ['completed', 'stopped', 'blocked', 'suspended']:
+                cached_result = load_cached_result(issue_number, 'scope_2b')
+                if cached_result:
+                    return jsonify({'success': True, 'status': 'completed', 'result': cached_result})
+                return jsonify({'success': True, 'status': session.status, 'session_url': session.url})
+            return jsonify({
+                'success': True,
+                'status': 'running',
+                'session_url': session.url,
+                'progress_message': 'Scoping (2b) in progress...'
+            })
+        finally:
+            loop.close()
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
             
             if session.status in ["completed", "stopped", "blocked", "suspended"]:
                 cached_result = load_cached_result(issue_number, 'scope')
@@ -1127,6 +1398,54 @@ async def complete_scope_session_with_devin_client(issue_number: int, issue, ses
     except Exception as e:
         print(f"[complete_scope_session_with_devin_client] Error scoping issue {issue_number}: {str(e)}")
         import traceback
+async def complete_scope_2a_session(issue_number: int, issue, session):
+    try:
+        devin_client = get_devin_client()
+        if not devin_client:
+            return
+        completed = await devin_client.wait_for_completion(session.session_id)
+        result = completed.structured_output or completed.output or {}
+        if isinstance(result, str):
+            try:
+                import json as _json
+                result = _json.loads(result)
+            except Exception:
+                result = {"raw": result}
+        if isinstance(result, dict):
+            result['session_id'] = session.session_id
+            result['session_url'] = completed.url or session.url
+        save_cached_result(issue_number, 'scope_2a', result)
+    except Exception as e:
+        save_cached_result(issue_number, 'scope_2a', {
+            "error": str(e),
+            "session_id": getattr(session, 'session_id', ''),
+            "session_url": getattr(session, 'url', '')
+        })
+
+async def complete_scope_2b_session(issue_number: int, issue, session):
+    try:
+        devin_client = get_devin_client()
+        if not devin_client:
+            return
+        completed = await devin_client.wait_for_completion(session.session_id)
+        result = completed.structured_output or completed.output or {}
+        if isinstance(result, str):
+            try:
+                import json as _json
+                result = _json.loads(result)
+            except Exception:
+                result = {"raw": result}
+        if isinstance(result, dict):
+            result['session_id'] = session.session_id
+            result['session_url'] = completed.url or session.url
+        save_cached_result(issue_number, 'scope_2b', result)
+    except Exception as e:
+        save_cached_result(issue_number, 'scope_2b', {
+            "error": str(e),
+            "session_id": getattr(session, 'session_id', ''),
+            "session_url": getattr(session, 'url', '')
+        })
+
         traceback.print_exc()
 
 

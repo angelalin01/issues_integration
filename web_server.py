@@ -163,6 +163,7 @@ def get_github_client():
                     )
                     
                 except Exception as e:
+                    raise Exception(f"Failed to fetch issue #{issue_number} from {repo_name}: {str(e)}")
             def get_pull_request(self, repo_name: str, pr_number: int):
                 try:
                     repo = self.get_repository(repo_name)
@@ -196,7 +197,6 @@ def get_github_client():
                     return self.get_pull_request(repo_name, pr_number)
                 except Exception as e:
                     raise Exception(f"Failed to parse or fetch PR from URL {pr_url}: {str(e)}")
-                    raise Exception(f"Failed to fetch issue #{issue_number} from {repo_name}: {str(e)}")
         
         return RuntimeGitHubClient()
     finally:

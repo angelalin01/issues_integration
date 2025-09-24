@@ -163,6 +163,39 @@ def get_github_client():
                     )
                     
                 except Exception as e:
+            def get_pull_request(self, repo_name: str, pr_number: int):
+                try:
+                    repo = self.get_repository(repo_name)
+                    pr = repo.get_pull(pr_number)
+                    files = pr.get_files()
+                    return {
+                        'number': pr.number,
+                        'title': pr.title or "",
+                        'body': pr.body or "",
+                        'html_url': pr.html_url,
+                        'files_changed': [f.filename for f in files] if files else []
+                    }
+                except Exception as e:
+                    raise Exception(f"Failed to fetch PR #{pr_number} from {repo_name}: {str(e)}")
+            
+            def get_pull_request_from_url(self, pr_url: str, default_repo: str):
+                try:
+                    from urllib.parse import urlparse
+                    parts = urlparse(pr_url)
+                    segments = [s for s in parts.path.split('/') if s]
+                    pr_number = None
+                    if len(segments) >= 4 and segments[-2] == 'pull':
+                        pr_number = int(segments[-1])
+                    if pr_number is None:
+                        raise ValueError("Cannot parse PR number from URL")
+                    repo_name = default_repo
+                    if len(segments) >= 4:
+                        possible_repo = f"{segments[0]}/{segments[1]}"
+                        if '/' in possible_repo:
+                            repo_name = possible_repo
+                    return self.get_pull_request(repo_name, pr_number)
+                except Exception as e:
+                    raise Exception(f"Failed to parse or fetch PR from URL {pr_url}: {str(e)}")
                     raise Exception(f"Failed to fetch issue #{issue_number} from {repo_name}: {str(e)}")
         
         return RuntimeGitHubClient()
@@ -989,7 +1022,20 @@ def generate_summary(issue_number):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            session = loop.run_until_complete(devin_client.create_summary_session(issue, pr_url))
+            pr_context_text = None
+            if pr_url:
+                try:
+                    pr_details = github_client.get_pull_request_from_url(pr_url, runtime_config['repo_name'])
+                    files_list = "\n".join(f"- {f}" for f in (pr_details.get('files_changed') or []))
+                    pr_context_text = (
+                        "PR Context:\n"
+                        f"Title: {pr_details.get('title','')}\n"
+                        f"Body:\n{pr_details.get('body','')}\n\n"
+                        f"Files changed:\n{files_list}\n"
+                    )
+                except Exception:
+                    pr_context_text = None
+            session = loop.run_until_complete(devin_client.create_summary_session(issue, pr_url, pr_context_text))
             
             import threading
             def complete_summary_session():

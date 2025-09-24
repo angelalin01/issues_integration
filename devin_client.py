@@ -261,6 +261,7 @@ Respond in JSON only, using this schema:
 
 ⚠️ Important: 
 - Return only the JSON object, with no natural language, markdown, or comments.
+- Use ONLY the provided PR context above; do NOT fetch external URLs or browse.
 - Do not explain the JSON, just fill in the fields with the results of the PR you just created."""
         
         summary_session = await self.create_session(summary_prompt)
@@ -325,13 +326,14 @@ Respond in JSON only, using this schema:
             test_coverage=output.get("test_coverage") or "Unknown coverage"
         )
 
-    async def create_summary_session(self, issue: GitHubIssue, pr_url: Optional[str] = None) -> DevinSession:
+    async def create_summary_session(self, issue: GitHubIssue, pr_url: Optional[str] = None, pr_context_text: Optional[str] = None) -> DevinSession:
         """Create a summary session without waiting for completion"""
-        pr_context = f"Pull Request URL: {pr_url}\n\n" if pr_url else ""
+        pr_url_line = f"Pull Request URL: {pr_url}\n\n" if pr_url else ""
+        pr_inline_context = f"{pr_context_text}\n\n" if pr_context_text else ""
         
         summary_prompt = f"""Please analyze and summarize the implementation for Issue #{issue.number}.
 
-{pr_context}Repository: {issue.repository}
+{pr_url_line}{pr_inline_context}Repository: {issue.repository}
 Issue #{issue.number}: {issue.title}
 
 Description:
@@ -357,6 +359,7 @@ Respond in JSON only, using this schema:
 
 ⚠️ Important: 
 - Return only the JSON object, with no natural language, markdown, or comments.
+- Use ONLY the provided PR context above; do NOT fetch external URLs or browse.
 - Do not explain the JSON, just fill in the fields with the results of the PR you just created."""
         
         return await self.create_session(summary_prompt)

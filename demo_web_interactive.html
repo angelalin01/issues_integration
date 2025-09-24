@@ -459,6 +459,14 @@
                     
                     // Show issue selector
                     document.getElementById('issue-selector').style.display = 'block';
+                } else {
+                    showError('Failed to fetch issues: ' + result.error);
+                }
+            } catch (error) {
+                showError('Failed to fetch issues: ' + error.message);
+            }
+        }
+ 
         async function scopeIssue2a() {
             if (!selectedIssueNumber) { showError('Please select an issue first'); return; }
             const stepsDiv = document.getElementById('demo-steps');
@@ -491,8 +499,13 @@
                 const sessionId = data.session_id;
                 async function poll() {
                     const r = await fetch(`${window.location.origin}/api/scope-2a/${selectedIssueNumber}/status/${sessionId}`);
-                    const s = await r.json();
-                    if (!s.success) { showError('Step 2a status failed: ' + (s.error || '')); return; }
+                    let s;
+                    try { s = await r.json(); } catch (_) { s = { success: false, error: 'Non-JSON response' }; }
+                    if (!s.success) {
+                        const prog = document.getElementById(`progress-2a-${selectedIssueNumber}`);
+                        if (prog) prog.textContent = 'Processing... (still running; retrying after transient error)';
+                        return setTimeout(poll, 5000);
+                    }
                     if (s.status === 'completed') {
                         container.innerHTML += `
                             <pre class="panel"><code>${JSON.stringify(s.result, null, 2)}</code></pre>
@@ -506,7 +519,7 @@
                 showError('Step 2a failed: ' + e.message);
             }
         }
-
+ 
         async function scopeIssue2b() {
             if (!selectedIssueNumber) { showError('Please select an issue first'); return; }
             const stepsDiv = document.getElementById('demo-steps');
@@ -539,8 +552,13 @@
                 const sessionId = data.session_id;
                 async function poll() {
                     const r = await fetch(`${window.location.origin}/api/scope-2b/${selectedIssueNumber}/status/${sessionId}`);
-                    const s = await r.json();
-                    if (!s.success) { showError('Step 2b status failed: ' + (s.error || '')); return; }
+                    let s;
+                    try { s = await r.json(); } catch (_) { s = { success: false, error: 'Non-JSON response' }; }
+                    if (!s.success) {
+                        const prog = document.getElementById(`progress-2b-${selectedIssueNumber}`);
+                        if (prog) prog.textContent = 'Processing... (still running; retrying after transient error)';
+                        return setTimeout(poll, 5000);
+                    }
                     if (s.status === 'completed') {
                         container.innerHTML += `
                             <pre class="panel"><code>${JSON.stringify(s.result, null, 2)}</code></pre>
@@ -552,14 +570,6 @@
                 poll();
             } catch (e) {
                 showError('Step 2b failed: ' + e.message);
-            }
-        }
-
-                } else {
-                    showError('Failed to fetch issues: ' + result.error);
-                }
-            } catch (error) {
-                showError('Failed to fetch issues: ' + error.message);
             }
         }
 

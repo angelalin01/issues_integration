@@ -333,6 +333,8 @@ def list_issues():
         })
         
     except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/scope-2a/<int:issue_number>')
 def scope_issue_2a(issue_number):
     try:
@@ -603,52 +605,6 @@ IMPORTANT:
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/scope/<int:issue_number>/status/<session_id>')
-def get_scope_status(issue_number, session_id):
-    """Get the status of a scoping session"""
-    try:
-        if runtime_config['demo_mode']:
-            import time
-            import random
-            
-            stages = [
-                {"status": "running", "progress": "Analyzing issue description..."},
-                {"status": "running", "progress": "Evaluating complexity and requirements..."},
-                {"status": "running", "progress": "Generating action plan..."},
-                {"status": "completed", "progress": "Analysis complete"}
-            ]
-            
-            stage_index = min(len(stages) - 1, abs(hash(session_id)) % len(stages))
-            current_stage = stages[stage_index]
-            
-            if current_stage["status"] == "completed":
-                cached_result = load_cached_result(issue_number, 'scope')
-                if cached_result:
-                    return jsonify({
-                        'success': True,
-                        'status': 'completed',
-                        'result': cached_result
-                    })
-            
-            return jsonify({
-                'success': True,
-                'status': current_stage["status"],
-                'session_url': None,
-                'progress_message': current_stage["progress"],
-                'action_plan_preview': []
-            })
-        
-        devin_client = get_devin_client()
-        if not devin_client:
-            return jsonify({'success': False, 'error': 'Devin client not available'})
-        
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            session = loop.run_until_complete(devin_client.get_session_status(session_id))
-            print(f"DEBUG: Status endpoint - session {session_id} has status: {session.status}")
-        except Exception as e:
-            return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/scope-2b/<int:issue_number>')
 def scope_issue_2b(issue_number):
@@ -788,96 +744,6 @@ def get_scope_2b_status(issue_number, session_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-            
-            if session.status in ["completed", "stopped", "blocked", "suspended"]:
-                cached_result = load_cached_result(issue_number, 'scope')
-                print(f"DEBUG: Looking for cached result for issue {issue_number}, found: {cached_result is not None}")
-                if cached_result:
-                    # PROTECTION: Never return demo data in live mode
-                    if not runtime_config.get('demo_mode', False):
-                        # Verify this isn't demo data by checking for demo indicators
-                        if not (isinstance(cached_result, dict) and 
-                               (cached_result.get('session_id', '').startswith('demo-') or
-                                cached_result.get('complexity_assessment') == 'Medium complexity - requires understanding of existing codebase')):
-                            if isinstance(cached_result, dict):
-                                sid = cached_result.get('session_id') or session_id
-                                if not cached_result.get('session_url') and sid:
-                                    cached_result['session_id'] = sid
-                                    cached_result['session_url'] = f"https://app.devin.ai/sessions/{sid.replace('devin-','')}"
-                            return jsonify({
-                                'success': True,
-                                'status': session.status,
-                                'session_url': cached_result.get('session_url') or getattr(session, 'url', None) or (f"https://app.devin.ai/sessions/{(cached_result.get('session_id') or session_id).replace('devin-','')}" if (cached_result.get('session_id') or session_id) else None),
-                                'result': cached_result
-                            })
-                    elif runtime_config.get('demo_mode', False):
-                        return jsonify({
-                            'success': True,
-                            'status': session.status,
-                            'session_url': cached_result.get('session_url'),
-                            'result': cached_result
-                        })
-                
-                # Return session structured output directly, but include session metadata for the UI
-                result_payload = session.structured_output if isinstance(session.structured_output, dict) else {}
-                if not isinstance(result_payload, dict):
-                    result_payload = {}
-                
-                if not result_payload or not any(key in result_payload for key in ['confidence_score', 'complexity_assessment', 'estimated_effort']):
-                    result_payload.update({
-                        'confidence_score': 0.5,
-                        'confidence_level': 'medium',
-                        'complexity_assessment': 'Analysis pending',
-                        'estimated_effort': 'Effort estimation pending',
-                        'required_skills': ['General development skills'],
-                        'action_plan': ['Analysis and planning required'],
-                        'risks': ['Standard implementation risks']
-                    })
-                
-                result_payload.update({
-                    'session_id': session.session_id if hasattr(session, 'session_id') else session_id,
-                    'session_url': getattr(session, 'url', None) or (f"https://app.devin.ai/sessions/{(session.session_id or session_id).replace('devin-','')}" if (hasattr(session, 'session_id') or session_id) else None)
-                })
-                return jsonify({
-                    'success': True,
-                    'status': session.status,
-                    'session_url': getattr(session, 'url', None) or (f"https://app.devin.ai/sessions/{(session.session_id or session_id).replace('devin-','')}" if (hasattr(session, 'session_id') or session_id) else None),
-                    'result': result_payload
-                })
-            else:
-                if session.status == "completed":
-                    result_payload = session.structured_output if isinstance(session.structured_output, dict) else {}
-                    if not isinstance(result_payload, dict):
-                        result_payload = {}
-                    result_payload.update({
-                        'session_id': session.session_id if hasattr(session, 'session_id') else session_id,
-                        'session_url': getattr(session, 'url', None) or (f"https://app.devin.ai/sessions/{(session.session_id or session_id).replace('devin-','')}" if (hasattr(session, 'session_id') or session_id) else None)
-                    })
-                    return jsonify({
-                        'success': True,
-                        'status': session.status,
-                        'session_url': getattr(session, 'url', None) or (f"https://app.devin.ai/sessions/{(session.session_id or session_id).replace('devin-','')}" if (hasattr(session, 'session_id') or session_id) else None),
-                        'result': result_payload
-                    })
-                progress_message = "Processing with Devin AI..."
-                action_plan_preview = []
-                if session.structured_output:
-                    if isinstance(session.structured_output, dict):
-                        progress_message = session.structured_output.get('progress', progress_message)
-                        action_plan_preview = (session.structured_output.get('action_plan') or session.structured_output.get('plan') or [])[:3]
-                
-                return jsonify({
-                    'success': True,
-                    'status': session.status,
-                    'session_url': getattr(session, 'url', None),
-                    'progress_message': progress_message,
-                    'action_plan_preview': action_plan_preview
-                })
-        finally:
-            loop.close()
-            
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/complete/<int:issue_number>')
 def complete_issue(issue_number):
@@ -1446,7 +1312,6 @@ async def complete_scope_2b_session(issue_number: int, issue, session):
             "session_url": getattr(session, 'url', '')
         })
 
-        traceback.print_exc()
 
 
 
@@ -1826,7 +1691,6 @@ async def complete_completion_session_with_devin_client(issue_number: int, issue
     except Exception as e:
         print(f"[complete_completion_session_with_devin_client] Error completing issue {issue_number}: {str(e)}")
         import traceback
-        traceback.print_exc()
 
 
 

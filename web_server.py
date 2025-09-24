@@ -933,10 +933,30 @@ def generate_summary(issue_number):
             })
         
         if runtime_config['demo_mode']:
-            # Demo mode - use canned responses
-            from demo_data import DemoData
-            completion_result = DemoData.get_sample_completion_result(issue_number)
-            result_dict = completion_result.dict()
+            # Demo mode - use canned responses; avoid hard dependency on demo_data
+            try:
+                from demo_data import DemoData
+                completion_result = DemoData.get_sample_completion_result(issue_number)
+                result_dict = completion_result.dict() if hasattr(completion_result, "dict") else completion_result
+            except Exception:
+                result_dict = {
+                    "issue_number": issue_number,
+                    "status": "completed",
+                    "completion_summary": "Demo summary generated successfully",
+                    "files_modified": [],
+                    "pull_request_url": "",
+                    "session_id": f"demo-{issue_number}",
+                    "session_url": "#",
+                    "success": True,
+                    "confidence_score": 0.5,
+                    "confidence_level": "medium",
+                    "complexity_assessment": "Standard complexity",
+                    "implementation_quality": "High quality",
+                    "required_skills": ["Software development"],
+                    "action_plan": ["Implementation completed"],
+                    "risks": ["Standard risks"],
+                    "test_coverage": "Appropriate coverage",
+                }
             
             return jsonify({
                 'success': True,

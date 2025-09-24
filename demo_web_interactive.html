@@ -1282,12 +1282,17 @@
             document.getElementById('issue-selector').style.display = 'none';
             document.getElementById('selected-issue').innerHTML = '<option value="">-- Select an Issue --</option>';
             selectedIssueNumber = null;
-            document.getElementById('scope-btn').disabled = true;
-            document.getElementById('create-pr-btn').disabled = true;
-            document.getElementById('generate-summary-btn').disabled = true;
-            document.getElementById('scope-btn').textContent = 'Scope Issue';
-            document.getElementById('create-pr-btn').textContent = 'Create PR';
-            document.getElementById('generate-summary-btn').textContent = 'Generate Summary';
+
+            const scope2aBtn = document.getElementById('scope-2a-btn');
+            const scope2bBtn = document.getElementById('scope-2b-btn');
+            const createPRBtn = document.getElementById('create-pr-btn');
+            const generateSummaryBtn = document.getElementById('generate-summary-btn');
+
+            if (scope2aBtn) { scope2aBtn.disabled = true; scope2aBtn.textContent = 'Scope Step 2a'; }
+            if (scope2bBtn) { scope2bBtn.disabled = true; scope2bBtn.textContent = 'Scope Step 2b'; }
+            if (createPRBtn) { createPRBtn.disabled = true; createPRBtn.textContent = 'Create PR'; }
+            if (generateSummaryBtn) { generateSummaryBtn.disabled = true; generateSummaryBtn.textContent = 'Generate Summary'; }
+
             prCreationInProgress = false;
             prCreationCompleted = false;
             createdPRUrl = null;
